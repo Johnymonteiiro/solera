@@ -89,9 +89,9 @@
   /* Solera custom tokens — backgrounds */
   --bg-base:        #0D0D0F;
   --bg-sidebar:     #111114;
-  --bg-card:        #18181C;
-  --bg-card-hover:  #1F1F25;
-  --bg-input:       #1A1A20;
+  --bg-card:        #17171B;
+  --bg-card-hover:  #1E1E24;
+  --bg-input:       #111115;
   --bg-highlight:   #1E1B2E;
 
   /* Solera custom tokens — text */
@@ -101,12 +101,12 @@
   --text-accent:    #FFFFFF;
 
   /* Solera custom tokens — borders */
-  --border-subtle:  #222228;
-  --border-active:  #333340;
+  --border-subtle:  #1F1F26;
+  --border-active:  #2E2E3A;
 
   /* Solera custom tokens — accent colors */
   --accent-purple:     #7B5CF0;
-  --accent-purple-dim: #1E1632;
+  --accent-purple-dim: #1C1530;
   --accent-green:      #22C55E;
   --accent-green-dim:  #0F2E1A;
   --accent-amber:      #F59E0B;
@@ -125,6 +125,8 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-active) transparent;
   }
   body {
     @apply bg-background text-foreground;
@@ -132,5 +134,19 @@
   }
   html {
     @apply font-sans;
+  }
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-active);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
   }
 }
