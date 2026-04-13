@@ -16,7 +16,8 @@
       "Bash(node -e \"const { getToken } = require\\('next-auth/jwt'\\); console.log\\('getToken available:', typeof getToken\\);\")",
       "mcp__context7__resolve-library-id",
       "mcp__context7__query-docs",
-      "Bash(pnpm shadcn:*)"
+      "Bash(pnpm shadcn:*)",
+      "Bash(git -C c:/Users/Johny/Documents/Projects/solera diff --stat HEAD)"
     ]
   }
 }

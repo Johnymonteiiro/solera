@@ -8,7 +8,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        // ── Existing ──────────────────────────────────────────────────────────
+        default:
+          "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
@@ -18,7 +20,26 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+
+        // ── New ───────────────────────────────────────────────────────────────
+        // flat: used for active tab/filter buttons — subtle fill, no border
+        flat: "border-transparent bg-[var(--bg-card-hover)] text-[var(--text-primary)] shadow-none hover:brightness-110",
+        // flat-ghost: inactive state companion for flat (transparent bg, muted text)
+        "flat-ghost":
+          "border-transparent bg-transparent text-[var(--text-muted)] shadow-none hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-secondary)]",
+        // soft: tinted dim bg + colored text + subtle border — requires color prop
+        soft: "border",
       },
+
+      // color — applies to `default` (solid) and `soft` (tinted) variants
+      color: {
+        purple: "",
+        green:  "",
+        amber:  "",
+        blue:   "",
+        red:    "",
+      },
+
       size: {
         default:
           "h-8 gap-1.5 px-1.5 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5",
@@ -33,6 +54,73 @@ const buttonVariants = cva(
         "icon-lg": "size-9",
       },
     },
+
+    compoundVariants: [
+      // ── default + color (solid fill) ──────────────────────────────────────
+      {
+        variant: "default",
+        color: "purple",
+        className:
+          "bg-[var(--accent-purple)] text-white hover:brightness-110",
+      },
+      {
+        variant: "default",
+        color: "green",
+        className:
+          "bg-[var(--accent-green)] text-white hover:brightness-110",
+      },
+      {
+        variant: "default",
+        color: "amber",
+        className:
+          "bg-[var(--accent-amber)] text-black hover:brightness-110",
+      },
+      {
+        variant: "default",
+        color: "blue",
+        className:
+          "bg-[var(--accent-blue)] text-white hover:brightness-110",
+      },
+      {
+        variant: "default",
+        color: "red",
+        className:
+          "bg-[var(--accent-red)] text-white hover:brightness-110",
+      },
+
+      // ── soft + color (tinted dim bg) ──────────────────────────────────────
+      {
+        variant: "soft",
+        color: "purple",
+        className:
+          "bg-[var(--accent-purple-dim)] text-[var(--accent-purple)] border-[var(--accent-purple)]/30 hover:bg-[var(--accent-purple)]/20",
+      },
+      {
+        variant: "soft",
+        color: "green",
+        className:
+          "bg-[var(--accent-green-dim)] text-[var(--accent-green)] border-[var(--accent-green)]/30 hover:bg-[var(--accent-green)]/20",
+      },
+      {
+        variant: "soft",
+        color: "amber",
+        className:
+          "bg-[var(--accent-amber-dim)] text-[var(--accent-amber)] border-[var(--accent-amber)]/30 hover:bg-[var(--accent-amber)]/20",
+      },
+      {
+        variant: "soft",
+        color: "blue",
+        className:
+          "bg-[var(--accent-blue-dim)] text-[var(--accent-blue)] border-[var(--accent-blue)]/30 hover:bg-[var(--accent-blue)]/20",
+      },
+      {
+        variant: "soft",
+        color: "red",
+        className:
+          "bg-[var(--accent-red-dim)] text-[var(--accent-red)] border-[var(--accent-red)]/30 hover:bg-[var(--accent-red)]/20",
+      },
+    ],
+
     defaultVariants: {
       variant: "default",
       size: "default",
@@ -44,6 +132,7 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  color,
   asChild = false,
   ...props
 }: React.ComponentProps<"button"> &
@@ -57,7 +146,7 @@ function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(buttonVariants({ variant, size, color, className }))}
       {...props}
     />
   );

@@ -1,9 +1,16 @@
-import { BarChart3, CheckCircle, Eye, Play, Plus, RefreshCw } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Topbar } from "@/components/dashboard/topbar"
-import { KpiCard } from "@/components/dashboard/kpi-card"
-import { EmptyState } from "@/components/dashboard/empty-state"
+import { EmptyState } from "@/components/dashboard/empty-state";
+import { KpiCard } from "@/components/dashboard/kpi-card";
+import { ModalPost } from "@/components/dashboard/modal-post";
+import { Topbar } from "@/components/dashboard/topbar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  BarChart3,
+  CheckCircle,
+  Eye,
+  Play,
+  RefreshCw,
+} from "lucide-react";
 
 export default function DashboardPage() {
   return (
@@ -13,28 +20,17 @@ export default function DashboardPage() {
         subtitle="visão geral do sistema"
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-[var(--border-active)] bg-transparent text-[var(--text-primary)] hover:bg-[var(--bg-card-hover)] text-[13px]"
-            >
+            <Button variant="outline" size="sm">
               <RefreshCw size={13} />
               Atualizar
             </Button>
-            <Button
-              size="sm"
-              className="bg-[var(--accent-purple)] text-white hover:brightness-110 text-[13px]"
-            >
-              <Plus size={13} strokeWidth={2.5} />
-              Nova execução
-            </Button>
+            <ModalPost />
           </>
         }
       />
 
       <div className="flex-1 overflow-y-auto p-7">
         <div className="flex flex-col gap-6">
-
           {/* KPI grid */}
           <div className="grid grid-cols-4 gap-3.5 max-[1100px]:grid-cols-2 max-[700px]:grid-cols-1">
             <KpiCard
@@ -69,7 +65,6 @@ export default function DashboardPage() {
 
           {/* Two-col: execuções + pipeline */}
           <div className="grid grid-cols-[1fr_380px] gap-3.5 max-[1100px]:grid-cols-1">
-
             {/* Execuções recentes */}
             <Card className="border-[var(--border-subtle)] bg-[var(--bg-card)] ring-0 gap-0">
               <CardHeader className="flex-row items-center justify-between border-b border-[var(--border-subtle)] px-5 py-4">
@@ -77,28 +72,18 @@ export default function DashboardPage() {
                   <CardTitle className="text-sm font-semibold text-[var(--text-primary)]">
                     Execuções recentes
                   </CardTitle>
-                  <p className="text-[11px] text-[var(--text-muted)]">últimas 24h</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    últimas 24h
+                  </p>
                 </div>
-                <div className="flex gap-1.5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 border-[var(--border-active)] bg-transparent px-3 text-xs text-[var(--text-primary)] hover:bg-[var(--bg-card-hover)]"
-                  >
+                <div className="flex gap-0.5">
+                  <Button variant="flat" size="sm" className="h-7 px-3 text-xs">
                     Todas
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 border-[var(--border-subtle)] bg-transparent px-3 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-card-hover)]"
-                  >
+                  <Button variant="flat-ghost" size="sm" className="h-7 px-3 text-xs">
                     Em andamento
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 border-[var(--border-subtle)] bg-transparent px-3 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-card-hover)]"
-                  >
+                  <Button variant="flat-ghost" size="sm" className="h-7 px-3 text-xs">
                     Revisão
                   </Button>
                 </div>
@@ -118,7 +103,9 @@ export default function DashboardPage() {
                 <CardTitle className="text-sm font-semibold text-[var(--text-primary)]">
                   Pipeline ativo
                 </CardTitle>
-                <span className="font-mono text-[11px] text-[var(--text-muted)]">—</span>
+                <span className="font-mono text-[11px] text-[var(--text-muted)]">
+                  —
+                </span>
               </CardHeader>
               <CardContent className="p-0">
                 <EmptyState
@@ -128,7 +115,6 @@ export default function DashboardPage() {
                 />
               </CardContent>
             </Card>
-
           </div>
 
           {/* Posts gerados */}
@@ -137,17 +123,13 @@ export default function DashboardPage() {
               <CardTitle className="text-sm font-semibold text-[var(--text-primary)]">
                 Posts gerados
               </CardTitle>
-              <div className="flex gap-1.5">
+              <div className="flex gap-0.5">
                 {["1d", "1s", "1m", "6m"].map((period, i) => (
                   <Button
                     key={period}
-                    variant="outline"
+                    variant={i === 1 ? "flat" : "flat-ghost"}
                     size="sm"
-                    className={`h-7 border-[var(--border-subtle)] bg-transparent px-2.5 text-[11px] hover:bg-[var(--bg-card-hover)] ${
-                      i === 1
-                        ? "border-[var(--border-active)] text-[var(--text-primary)]"
-                        : "text-[var(--text-muted)]"
-                    }`}
+                    className="h-7 px-2.5 text-[11px]"
                   >
                     {period}
                   </Button>
@@ -162,9 +144,8 @@ export default function DashboardPage() {
               />
             </CardContent>
           </Card>
-
         </div>
       </div>
     </>
-  )
+  );
 }
