@@ -3,7 +3,20 @@
     "allow": [
       "Bash(pnpm dlx:*)",
       "Bash(pnpm --version)",
-      "Bash(npx:*)"
+      "Bash(npx:*)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "WebSearch",
+      "WebFetch(domain:www.shadcnblocks.com)",
+      "Bash(cat postcss.config.*)",
+      "Bash(cat next.config.*)",
+      "Bash(node_modules/.bin/next dev:*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -r \"NEXTAUTH_URL\\\\|NEXTAUTH_SECRET\\\\|AUTH_SECRET\" /c/Users/Johny/Documents/Projects/solera/.env*)",
+      "Bash(grep -v \"^\\\\s*//\")",
+      "Bash(node -e \"const { getToken } = require\\('next-auth/jwt'\\); console.log\\('getToken available:', typeof getToken\\);\")",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "Bash(pnpm shadcn:*)"
     ]
   }
 }

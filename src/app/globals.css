@@ -1,0 +1,136 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.667);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.333);
+  --radius-2xl: calc(var(--radius) * 1.667);
+}
+
+/* ── Solera Design System — Dark First ── */
+:root {
+  /* shadcn semantic tokens */
+  --background: #0D0D0F;
+  --foreground: #E8E8EE;
+  --card: #18181C;
+  --card-foreground: #E8E8EE;
+  --popover: #18181C;
+  --popover-foreground: #E8E8EE;
+  --primary: #7B5CF0;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1A1A20;
+  --secondary-foreground: #E8E8EE;
+  --muted: #18181C;
+  --muted-foreground: #8888A0;
+  --accent: #1E1B2E;
+  --accent-foreground: #7B5CF0;
+  --destructive: #EF4444;
+  --border: #222228;
+  --input: #1A1A20;
+  --ring: #7B5CF0;
+  --radius: 0.5rem;
+
+  /* Sidebar tokens */
+  --sidebar: #111114;
+  --sidebar-foreground: #E8E8EE;
+  --sidebar-primary: #7B5CF0;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E1B2E;
+  --sidebar-accent-foreground: #7B5CF0;
+  --sidebar-border: #222228;
+  --sidebar-ring: #7B5CF0;
+
+  /* Chart */
+  --chart-1: #7B5CF0;
+  --chart-2: #22C55E;
+  --chart-3: #3B82F6;
+  --chart-4: #F59E0B;
+  --chart-5: #EF4444;
+
+  /* Solera custom tokens — backgrounds */
+  --bg-base:        #0D0D0F;
+  --bg-sidebar:     #111114;
+  --bg-card:        #18181C;
+  --bg-card-hover:  #1F1F25;
+  --bg-input:       #1A1A20;
+  --bg-highlight:   #1E1B2E;
+
+  /* Solera custom tokens — text */
+  --text-primary:   #E8E8EE;
+  --text-secondary: #8888A0;
+  --text-muted:     #55556A;
+  --text-accent:    #FFFFFF;
+
+  /* Solera custom tokens — borders */
+  --border-subtle:  #222228;
+  --border-active:  #333340;
+
+  /* Solera custom tokens — accent colors */
+  --accent-purple:     #7B5CF0;
+  --accent-purple-dim: #1E1632;
+  --accent-green:      #22C55E;
+  --accent-green-dim:  #0F2E1A;
+  --accent-amber:      #F59E0B;
+  --accent-amber-dim:  #2D1F00;
+  --accent-red:        #EF4444;
+  --accent-red-dim:    #2D0F0F;
+  --accent-blue:       #3B82F6;
+  --accent-blue-dim:   #0F1E3A;
+
+  /* Solera layout */
+  --sidebar-w:     200px;
+  --sidebar-w-col: 56px;
+  --topbar-h:      56px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 14px;
+  }
+  html {
+    @apply font-sans;
+  }
+}
