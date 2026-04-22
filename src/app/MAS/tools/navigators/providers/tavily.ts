@@ -1,4 +1,4 @@
-import { NavigatorOptions, ResearchResult } from "@/app/agents/types/types";
+import { NavigatorOptions, ResearchResult } from "@/app/MAS/types/types";
 import { tavily } from "@tavily/core";
 
 const LANG_CONFIG: Record<string, { country: string; includeDomains: string[] }> = {
