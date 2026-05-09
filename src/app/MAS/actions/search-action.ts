@@ -1,7 +1,7 @@
 "use server";
 
-import { searchWeb } from "@/app/agents/tools/search";
-import { NavigatorProvider, ResearchResult, SearchLanguage } from "@/app/agents/types/types";
+import { searchWeb } from "@/app/MAS/tools/search";
+import { NavigatorProvider, ResearchResult, SearchLanguage } from "@/app/MAS/types/types";
 
 export async function searchWebAction(
   query: string,

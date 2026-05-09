@@ -1,7 +1,7 @@
 "use client";
 
-import { searchWebAction } from "@/app/agents/actions/search-action";
-import { NavigatorProvider, ResearchResult, SearchLanguage } from "@/app/agents/types/types";
+import { POST_SIZE_RANGES } from "@/app/MAS/constants";
+import { NavigatorProvider, PostSize, SearchLanguage } from "@/app/MAS/types/types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import {
@@ -12,7 +12,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Globe, Languages, Loader2 } from "lucide-react";
+import {
+  AlignLeft,
+  BookOpen,
+  ChevronDown,
+  Globe,
+  Languages,
+  Loader2,
+  Menu,
+  type LucideIcon,
+} from "lucide-react";
 import * as React from "react";
 
 const MAX_CHARS = 300;
@@ -25,7 +34,13 @@ const PROVIDERS: { value: NavigatorProvider; label: string }[] = [
 
 const LANGUAGES: { value: SearchLanguage; label: string; short: string }[] = [
   { value: "pt-BR", label: "Português", short: "PT" },
-  { value: "en-US", label: "English",   short: "EN" },
+  { value: "en-US", label: "English", short: "EN" },
+];
+
+const POST_SIZES: { value: PostSize; icon: LucideIcon; short: string }[] = [
+  { value: "small", icon: AlignLeft, short: "S" },
+  { value: "medium", icon: Menu, short: "M" },
+  { value: "large", icon: BookOpen, short: "L" },
 ];
 
 interface ModalPostProps {
@@ -37,40 +52,67 @@ export function ModalPost({ trigger }: ModalPostProps) {
   const [topic, setTopic] = React.useState("");
   const [provider, setProvider] = React.useState<NavigatorProvider>("tavily");
   const [language, setLanguage] = React.useState<SearchLanguage>("pt-BR");
-  const [loading, setLoading] = React.useState(false);
-  const [results, setResults] = React.useState<ResearchResult[] | null>(null);
+  const [postSize, setPostSize] = React.useState<PostSize>("medium");
+  const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const charCount = topic.length;
   const isValid = charCount >= MIN_CHARS && charCount <= MAX_CHARS;
 
-  async function handleGenerate() {
-    if (!isValid) return;
-    setLoading(true);
+  function resetForm() {
+    setTopic("");
     setError(null);
-    setResults(null);
+    setSubmitting(false);
+  }
 
-    const response = await searchWebAction(topic, provider, language);
+  async function handleSubmit() {
+    if (!isValid || submitting) return;
+    setSubmitting(true);
+    setError(null);
 
-    if (response.error) {
-      setError(response.error);
-    } else {
-      setResults(response.results ?? []);
+    try {
+      const res = await fetch("/api/mas/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic,
+          navigatorProvider: provider,
+          language,
+          postSize,
+        }),
+      });
+      const data = (await res.json()) as { threadId?: string; error?: string };
+      if (!res.ok || !data.threadId) {
+        setError(data.error ?? "Falha ao iniciar execução");
+        setSubmitting(false);
+        return;
+      }
+
+      // notifica o dashboard pra atualizar o card de pipeline imediatamente
+      window.dispatchEvent(
+        new CustomEvent("mas:thread-created", {
+          detail: { threadId: data.threadId },
+        }),
+      );
+
+      // fecha o modal — o pipeline é acompanhado no dashboard
+      setOpen(false);
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro de rede");
+      setSubmitting(false);
     }
-
-    setLoading(false);
   }
 
   function handleOpenChange(val: boolean) {
+    if (submitting) return;
     setOpen(val);
-    if (!val) {
-      setTopic("");
-      setResults(null);
-      setError(null);
-    }
+    if (!val) resetForm();
   }
 
   const currentLang = LANGUAGES.find((l) => l.value === language)!;
+  const currentSize = POST_SIZES.find((s) => s.value === postSize)!;
+  const CurrentSizeIcon = currentSize.icon;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -82,9 +124,9 @@ export function ModalPost({ trigger }: ModalPostProps) {
         )}
       </DialogTrigger>
 
-      <DialogContent className="w-full max-w-[660px] rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-0 shadow-2xl">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[560px] rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-0 shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-5 py-4 pr-12">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] px-4 py-3.5 pr-10 sm:px-5 sm:py-4 sm:pr-12">
           <div className="flex items-center gap-2.5">
             <span className="size-2 rounded-full bg-[var(--accent-purple)]" />
             <span className="text-[14px] font-semibold text-[var(--text-primary)]">
@@ -92,15 +134,21 @@ export function ModalPost({ trigger }: ModalPostProps) {
             </span>
           </div>
 
-          {/* Controls: provider + language */}
-          <div className="flex items-center gap-1.5">
-            {/* Provider selector */}
+          <div className="flex flex-wrap items-center gap-1.5">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-1.5 rounded-md border border-[var(--border-active)] bg-[var(--bg-input)] px-2.5 py-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-primary)] focus:outline-none">
-                  <Globe size={12} strokeWidth={2} className="text-[var(--accent-purple)]" />
+                  <Globe
+                    size={12}
+                    strokeWidth={2}
+                    className="text-[var(--accent-purple)]"
+                  />
                   {PROVIDERS.find((p) => p.value === provider)?.label}
-                  <ChevronDown size={11} strokeWidth={2} className="opacity-50" />
+                  <ChevronDown
+                    size={11}
+                    strokeWidth={2}
+                    className="opacity-50"
+                  />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-[130px]">
@@ -126,16 +174,22 @@ export function ModalPost({ trigger }: ModalPostProps) {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Divider */}
             <span className="h-4 w-px bg-[var(--border-active)]" />
 
-            {/* Language selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-1.5 rounded-md border border-[var(--border-active)] bg-[var(--bg-input)] px-2.5 py-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-primary)] focus:outline-none">
-                  <Languages size={12} strokeWidth={2} className="text-[var(--accent-purple)]" />
+                  <Languages
+                    size={12}
+                    strokeWidth={2}
+                    className="text-[var(--accent-purple)]"
+                  />
                   {currentLang.short}
-                  <ChevronDown size={11} strokeWidth={2} className="opacity-50" />
+                  <ChevronDown
+                    size={11}
+                    strokeWidth={2}
+                    className="opacity-50"
+                  />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-[140px]">
@@ -160,12 +214,61 @@ export function ModalPost({ trigger }: ModalPostProps) {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <span className="h-4 w-px bg-[var(--border-active)]" />
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-1.5 rounded-md border border-[var(--border-active)] bg-[var(--bg-input)] px-2.5 py-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-primary)] focus:outline-none">
+                  <CurrentSizeIcon
+                    size={12}
+                    strokeWidth={2}
+                    className="text-[var(--accent-purple)]"
+                  />
+                  {POST_SIZE_RANGES[postSize].label}
+                  <ChevronDown
+                    size={11}
+                    strokeWidth={2}
+                    className="opacity-50"
+                  />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[220px]">
+                <DropdownMenuLabel className="text-[var(--text-muted)]">
+                  Tamanho do post
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {POST_SIZES.map((s) => {
+                  const range = POST_SIZE_RANGES[s.value];
+                  const Icon = s.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={s.value}
+                      onSelect={() => setPostSize(s.value)}
+                      className="flex items-start justify-between gap-2 text-[13px]"
+                    >
+                      <span className="flex items-start gap-1.5">
+                        <Icon size={12} strokeWidth={2} className="mt-0.5" />
+                        <span className="flex flex-col gap-0.5">
+                          <span>{range.label}</span>
+                          <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                            ~{range.min}-{range.max} chars · {range.hint}
+                          </span>
+                        </span>
+                      </span>
+                      {postSize === s.value && (
+                        <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[var(--accent-purple)]" />
+                      )}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
         {/* Body */}
-        <div className="flex flex-col gap-4 px-5 pb-5 pt-4">
-          {/* Textarea */}
+        <div className="flex flex-col gap-4 px-4 pb-5 pt-4 sm:px-5">
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
               Tópico ou contexto
@@ -193,75 +296,28 @@ export function ModalPost({ trigger }: ModalPostProps) {
             </div>
           </div>
 
-          {/* Error */}
           {error && (
             <div className="rounded-lg border border-[var(--accent-red-dim)] bg-[var(--accent-red-dim)] px-3.5 py-2.5 text-[12px] text-[var(--accent-red)]">
               {error}
             </div>
           )}
 
-          {/* Results preview */}
-          {results && results.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span className="text-[11px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
-                Resultados ({results.length})
-              </span>
-              <ul className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
-                {results.map((r, i) => (
-                  <li
-                    key={i}
-                    className="flex flex-col gap-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3 py-2.5"
-                  >
-                    <span className="text-[12px] font-medium text-[var(--text-primary)] line-clamp-1">
-                      {r.title}
-                    </span>
-                    <span className="font-mono text-[10px] text-[var(--text-muted)] truncate">
-                      {r.url}
-                    </span>
-                    <div>
-                      <span className="text-[11px] text-[var(--text-secondary)] line-clamp-3">
-                        {r.content}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {results && results.length === 0 && (
-            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3.5 py-3 text-center text-[12px] text-[var(--text-muted)]">
-              Nenhum resultado encontrado.
-            </div>
-          )}
-
-          {/* CTAs */}
-          <div className="flex gap-2.5">
-            <Button
-              variant="soft"
-              color="purple"
-              onClick={handleGenerate}
-              disabled={!isValid || loading}
-              className="h-10 flex-1 text-[13px] font-medium"
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  A pesquisar...
-                </>
-              ) : (
-                "Pesquisar tópico"
-              )}
-            </Button>
-            <Button
-              variant="soft"
-              color="green"
-              disabled
-              className="h-10 flex-1 text-[13px] font-medium"
-            >
-              Gerar post
-            </Button>
-          </div>
+          <Button
+            variant="default"
+            color="purple"
+            onClick={handleSubmit}
+            disabled={!isValid || submitting}
+            className="h-10 text-[13px] font-medium"
+          >
+            {submitting ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Iniciando pipeline...
+              </>
+            ) : (
+              "Gerar post"
+            )}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
