@@ -1,7 +1,5 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
 import {
   Activity,
   BarChart3,
@@ -14,7 +12,9 @@ import {
   Play,
   Settings,
   Wrench,
-} from "lucide-react"
+} from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import {
   Sidebar,
@@ -28,7 +28,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
+import Image from "next/image";
+
+import ImageURL from "@/assets/logo.png";
 
 const navPrincipal = [
   {
@@ -55,7 +58,7 @@ const navPrincipal = [
     href: "/posts",
     icon: FileText,
   },
-]
+];
 
 const navAgentes = [
   {
@@ -75,7 +78,7 @@ const navAgentes = [
     badge: "New",
     badgeVariant: "new" as const,
   },
-]
+];
 
 const navSistema = [
   {
@@ -88,7 +91,7 @@ const navSistema = [
     href: "/langsmith",
     icon: Activity,
   },
-]
+];
 
 const navBottom = [
   {
@@ -101,22 +104,24 @@ const navBottom = [
     href: "/ajuda",
     icon: HelpCircle,
   },
-]
+];
 
 const badgeStyles = {
-  purple: "bg-[var(--accent-purple)] text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
-  amber: "bg-[var(--accent-amber)] text-black text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+  purple:
+    "bg-[var(--accent-purple)] text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+  amber:
+    "bg-[var(--accent-amber)] text-black text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
   new: "bg-[var(--accent-green-dim)] text-[var(--accent-green)] text-[9px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide",
-}
+};
 
 export function AppSidebar() {
-  const pathname = usePathname()
+  const pathname = usePathname();
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-[var(--border-subtle)] px-3.5 py-0 h-14 flex-row items-center gap-2.5">
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-purple)]">
-          <svg width="14" height="14" viewBox="0 0 90 90" fill="none">
+        <div className="flex size-7 shrink-0 items-center justify-center">
+          {/* <svg width="14" height="14" viewBox="0 0 90 90" fill="none">
             <path
               d="M58 22C58 22 30 22 28 22C18 22 14 30 14 37C14 46 21 51 30 52L50 55C58 56 62 60 62 67C62 74 56 70 50 70L22 70"
               stroke="white"
@@ -124,11 +129,16 @@ export function AppSidebar() {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-          </svg>
+          </svg> */}
+          <Image alt="logo" width={60} height={60} src={ImageURL} />
         </div>
         <div className="flex flex-col leading-tight overflow-hidden group-data-[collapsible=icon]:hidden">
-          <span className="text-sm font-bold text-[var(--text-primary)]">Solera</span>
-          <span className="font-mono text-[10px] text-[var(--text-muted)]">multi-agent</span>
+          <span className="text-sm font-bold text-[var(--text-primary)]">
+            Solera
+          </span>
+          <span className="font-mono text-[10px] text-[var(--text-muted)]">
+            multi-agent
+          </span>
         </div>
       </SidebarHeader>
 
@@ -235,5 +245,5 @@ export function AppSidebar() {
 
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

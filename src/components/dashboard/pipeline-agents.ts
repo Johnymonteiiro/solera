@@ -1,4 +1,10 @@
-import { AgentStatus } from "@/app/MAS/types/types";
+import {
+  AgentStatus,
+  CritiqueResult,
+  HumanFeedback,
+  PostSize,
+  ResearchResult,
+} from "@/app/MAS/types/types";
 import {
   Brain,
   PenTool,
@@ -11,12 +17,32 @@ import {
 
 export type NodeState = "active" | "done" | "pending" | "skeleton" | "error";
 
+export interface ThreadArtifacts {
+  researchResults: ResearchResult[];
+  insights: string[];
+  draft: string;
+  critique: CritiqueResult | null;
+  humanFeedback: HumanFeedback | null;
+  revisionCount: number;
+  postSize: PostSize;
+  finalPostUrl: string | null;
+}
+
+export type ArtifactKey = keyof ThreadArtifacts;
+
+export interface ArtifactDef {
+  label: string;
+  key: ArtifactKey;
+}
+
 export interface AgentDef {
   id: string;
   label: string;
   icon: LucideIcon;
   statuses: AgentStatus[];
   implemented: boolean;
+  activeLabel: string;
+  artifact: ArtifactDef | null;
 }
 
 export const AGENTS: AgentDef[] = [
@@ -26,41 +52,53 @@ export const AGENTS: AgentDef[] = [
     icon: Search,
     statuses: ["researching"],
     implemented: true,
+    activeLabel: "pesquisando...",
+    artifact: { label: "ver tópicos", key: "researchResults" },
   },
   {
     id: "analyst",
     label: "Analyst",
     icon: Brain,
     statuses: ["analyzing"],
-    implemented: false,
+    implemented: true,
+    activeLabel: "analisando...",
+    artifact: { label: "ver insights", key: "insights" },
   },
   {
     id: "writer",
     label: "Writer",
     icon: PenTool,
-    statuses: ["writing"],
-    implemented: false,
+    statuses: ["writing", "revising"],
+    implemented: true,
+    activeLabel: "escrevendo...",
+    artifact: { label: "ver rascunho", key: "draft" },
   },
   {
     id: "critic",
     label: "Critic",
     icon: ShieldCheck,
     statuses: ["critiquing"],
-    implemented: false,
+    implemented: true,
+    activeLabel: "avaliando...",
+    artifact: { label: "ver crítica", key: "critique" },
   },
   {
     id: "hitl",
     label: "HITL",
     icon: UserCheck,
-    statuses: ["awaiting_review", "revising"],
-    implemented: false,
+    statuses: ["awaiting_review"],
+    implemented: true,
+    activeLabel: "aguardando revisão...",
+    artifact: { label: "ver feedback", key: "humanFeedback" },
   },
   {
     id: "publisher",
     label: "Publisher",
     icon: Send,
     statuses: ["publishing"],
-    implemented: false,
+    implemented: true,
+    activeLabel: "publicando...",
+    artifact: { label: "ver post", key: "finalPostUrl" },
   },
 ];
 
@@ -71,6 +109,23 @@ export const STATE_LABEL: Record<NodeState, string> = {
   skeleton: "em breve",
   error: "erro",
 };
+
+export function badgeLabel(agent: AgentDef, state: NodeState): string {
+  if (state === "active") return agent.activeLabel;
+  return STATE_LABEL[state];
+}
+
+export function hasArtifact(
+  agent: AgentDef,
+  artifacts: ThreadArtifacts | null,
+): boolean {
+  if (!agent.artifact || !artifacts) return false;
+  const value = artifacts[agent.artifact.key];
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  return true;
+}
 
 export function computeNodeState(
   agent: AgentDef,

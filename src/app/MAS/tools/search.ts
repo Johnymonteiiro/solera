@@ -12,7 +12,7 @@ export async function searchWeb(
   }
   return navigator(navigatorProvider, {
     query,
-    maxResults: 5,
+    maxResults: 10,
     apiKey,
     language,
   });

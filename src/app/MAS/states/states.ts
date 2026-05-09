@@ -1,6 +1,6 @@
 import { BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
-import { AgentStatus, CritiqueResult, HumanFeedback, NavigatorProvider, ResearchResult, SearchLanguage } from "../types/types";
+import { AgentStatus, CritiqueResult, HumanFeedback, NavigatorProvider, PostSize, ResearchResult, SearchLanguage } from "../types/types";
 
 /*
  Porque o state é importante?
@@ -21,6 +21,11 @@ export const AgentState = Annotation.Root({
   language: Annotation<SearchLanguage>({
     value: (_prev, next) => next,
     default: () => "pt-BR",
+  }),
+
+  postSize: Annotation<PostSize>({
+    value: (_prev, next) => next,
+    default: () => "medium",
   }),
 
   researchResults: Annotation<ResearchResult[]>({

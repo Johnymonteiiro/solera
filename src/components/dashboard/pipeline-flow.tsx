@@ -3,8 +3,10 @@
 import { AgentStatus } from "@/app/MAS/types/types";
 import {
   AGENTS,
+  AgentDef,
   NodeState,
-  STATE_LABEL,
+  ThreadArtifacts,
+  badgeLabel,
   computeNodeState,
 } from "@/components/dashboard/pipeline-agents";
 import { cn } from "@/lib/utils";
@@ -20,8 +22,9 @@ import {
   ReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/base.css";
-import { Check, type LucideIcon } from "lucide-react";
+import { Check } from "lucide-react";
 import * as React from "react";
+import { AgentArtifactButton } from "./agent-artifact-button";
 
 const NODE_W = 124;
 const NODE_GAP = 40;
@@ -29,7 +32,7 @@ const NODE_Y = 20;
 
 const CARD_CLASSES: Record<NodeState, string> = {
   active:
-    "border-[var(--accent-purple)] bg-[var(--accent-purple-dim)] text-[var(--text-primary)] shadow-[0_0_0_3px_rgba(123,92,240,0.18)]",
+    "border-transparent bg-[var(--accent-purple-dim)] text-[var(--text-primary)]",
   done: "border-transparent bg-[var(--bg-card)] text-[var(--text-primary)]",
   pending:
     "border-[var(--border-active)] bg-[var(--bg-card)] text-[var(--text-secondary)]",
@@ -50,7 +53,7 @@ const ICON_WRAP_CLASSES: Record<NodeState, string> = {
 const BADGE_CLASSES: Record<NodeState, string> = {
   active:
     "border border-[var(--accent-purple)]/40 bg-[var(--accent-purple)]/15 text-[var(--accent-purple)]",
-  done: "border border-[var(--accent-green)]/40 bg-[var(--accent-green)]/15 text-[var(--accent-green)]",
+  done: "border border-[var(--accent-green)]/40 bg-transparent text-[var(--accent-green)]",
   pending:
     "border border-[var(--border-active)]/60 bg-[var(--bg-input)] text-[var(--text-muted)]",
   skeleton:
@@ -60,24 +63,45 @@ const BADGE_CLASSES: Record<NodeState, string> = {
 };
 
 interface AgentNodeData extends Record<string, unknown> {
-  label: string;
-  icon: LucideIcon;
+  agent: AgentDef;
   state: NodeState;
+  artifacts: ThreadArtifacts | null;
 }
 
 function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
-  const Icon = data.icon;
-  const isActive = data.state === "active";
-  const isDone = data.state === "done";
+  const { agent, state, artifacts } = data;
+  const Icon = agent.icon;
+  const isActive = state === "active";
+  const isDone = state === "done";
 
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-1.5 rounded-xl border px-3 py-3.5 transition-colors",
-        CARD_CLASSES[data.state],
+        "relative flex flex-col items-center justify-center gap-1.5 rounded-xl border px-3 py-3.5 shadow-[0_4px_16px_rgba(0,0,0,0.25)] transition-colors",
+        CARD_CLASSES[state],
       )}
       style={{ width: NODE_W }}
     >
+      {(isActive || isDone) && (
+        <svg
+          aria-hidden
+          className="pointer-events-none absolute inset-0 size-full overflow-visible"
+        >
+          <rect
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+            rx="12"
+            ry="12"
+            fill="none"
+            stroke={isActive ? "var(--accent-purple)" : "var(--accent-green)"}
+            strokeWidth="1"
+            strokeDasharray="3 3"
+            style={{ animation: "dash-march 0.6s linear infinite" }}
+          />
+        </svg>
+      )}
       <Handle
         type="target"
         position={Position.Left}
@@ -86,7 +110,7 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
       <div
         className={cn(
           "relative flex size-8 items-center justify-center rounded-lg",
-          ICON_WRAP_CLASSES[data.state],
+          ICON_WRAP_CLASSES[state],
         )}
       >
         {isActive && (
@@ -94,16 +118,23 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
         )}
         <Icon size={16} strokeWidth={1.75} className="relative" />
       </div>
-      <span className="text-[12px] font-medium">{data.label}</span>
-      <span
-        className={cn(
-          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[1px]",
-          BADGE_CLASSES[data.state],
-        )}
-      >
-        {isDone && <Check size={9} strokeWidth={3} />}
-        {STATE_LABEL[data.state]}
-      </span>
+      <span className="text-[12px] font-medium">{agent.label}</span>
+      <div className="flex flex-col gap-1 z-100 nodrag">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full p-1 font-mono text-[6px] uppercase tracking-[1px]",
+            BADGE_CLASSES[state],
+          )}
+        >
+          {isDone && <Check size={9} strokeWidth={3} />}
+          {badgeLabel(agent, state)}
+        </span>
+        <AgentArtifactButton
+          agent={agent}
+          state={state}
+          artifacts={artifacts}
+        />
+      </div>
       <Handle
         type="source"
         position={Position.Right}
@@ -118,15 +149,16 @@ const nodeTypes: NodeTypes = { agent: AgentNode };
 function buildNodes(
   currentStatus: AgentStatus,
   errorAgentIdx: number | null,
+  artifacts: ThreadArtifacts | null,
 ): Node<AgentNodeData>[] {
   return AGENTS.map((agent, idx) => ({
     id: agent.id,
     type: "agent",
     position: { x: idx * (NODE_W + NODE_GAP), y: NODE_Y },
     data: {
-      label: agent.label,
-      icon: agent.icon,
+      agent,
       state: computeNodeState(agent, currentStatus, errorAgentIdx),
+      artifacts,
     },
     draggable: false,
     selectable: false,
@@ -156,13 +188,13 @@ function buildEdges(
       source: agent.id,
       target: next.id,
       type: "smoothstep",
-      animated: true,
+      animated: false,
       style: {
         stroke,
-        strokeWidth: 1.5,
-        strokeDasharray: "5 4",
-        opacity:
-          isActiveEdge || isErrorEdge || isDoneEdge ? 1 : 0.55,
+        strokeWidth: 1,
+        strokeDasharray: "3 3",
+        animation: "dash-march 0.6s linear infinite",
+        opacity: isActiveEdge || isErrorEdge || isDoneEdge ? 1 : 0.55,
       },
     };
   });
@@ -170,16 +202,18 @@ function buildEdges(
 
 interface PipelineFlowProps {
   currentStatus: AgentStatus;
+  artifacts?: ThreadArtifacts | null;
   errorAgentIdx?: number | null;
 }
 
 export function PipelineFlow({
   currentStatus,
+  artifacts = null,
   errorAgentIdx = null,
 }: PipelineFlowProps) {
   const nodes = React.useMemo(
-    () => buildNodes(currentStatus, errorAgentIdx),
-    [currentStatus, errorAgentIdx],
+    () => buildNodes(currentStatus, errorAgentIdx, artifacts),
+    [currentStatus, errorAgentIdx, artifacts],
   );
   const edges = React.useMemo(
     () => buildEdges(currentStatus, errorAgentIdx),
@@ -187,7 +221,7 @@ export function PipelineFlow({
   );
 
   return (
-    <div className="h-[240px] w-full">
+    <div className="h-[280px] w-full">
       <ReactFlow
         nodes={nodes}
         edges={edges}

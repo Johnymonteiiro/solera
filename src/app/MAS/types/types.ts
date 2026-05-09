@@ -2,6 +2,7 @@
 
 export type NavigatorProvider = "tavily" | "brave";
 export type SearchLanguage = "pt-BR" | "en-US";
+export type PostSize = "small" | "medium" | "large";
 
 export interface NavigatorOptions {
   query?: string;
@@ -64,6 +65,9 @@ export interface StatusEvent {
 // ─── API request / response ───────────────────────────────────────────────────
 export interface RunRequest {
   topic: string;
+  navigatorProvider?: NavigatorProvider;
+  language?: SearchLanguage;
+  postSize?: PostSize;
 }
 
 export interface RunResponse {

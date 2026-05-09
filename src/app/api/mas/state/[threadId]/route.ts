@@ -20,7 +20,12 @@ export async function GET(
     threadId,
     status: values.status ?? "idle",
     researchResults: values.researchResults ?? [],
+    insights: values.insights ?? [],
     draft: values.draft ?? "",
+    critique: values.critique ?? null,
+    humanFeedback: values.humanFeedback ?? null,
+    revisionCount: values.revisionCount ?? 0,
+    postSize: values.postSize ?? "medium",
     finalPostUrl: values.finalPostUrl ?? null,
   });
 }

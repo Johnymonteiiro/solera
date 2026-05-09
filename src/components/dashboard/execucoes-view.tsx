@@ -3,8 +3,10 @@
 import { AgentStatus, StatusEvent } from "@/app/MAS/types/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExecutionRow, ExecutionsTable } from "./executions-table";
+import { ThreadArtifacts } from "./pipeline-agents";
 import { PipelineFlow } from "./pipeline-flow";
 import { PipelineVertical } from "./pipeline-vertical";
+import { ReviewPopup } from "./review-popup";
 import * as React from "react";
 
 const POLL_INTERVAL_MS = 5_000;
@@ -14,12 +16,55 @@ interface ThreadsResponse {
   threads: ExecutionRow[];
 }
 
+interface StateResponse extends ThreadArtifacts {
+  threadId: string;
+  status: AgentStatus;
+}
+
 export function ExecucoesView() {
   const [rows, setRows] = React.useState<ExecutionRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [liveStatus, setLiveStatus] = React.useState<AgentStatus>("idle");
+  const [artifacts, setArtifacts] = React.useState<ThreadArtifacts | null>(
+    null,
+  );
   const esRef = React.useRef<EventSource | null>(null);
+
+  // Busca artefatos do thread sempre que o status mudar — cada agente que
+  // termina adiciona campos novos (researchResults, insights, draft, etc.)
+  React.useEffect(() => {
+    if (!selectedId) {
+      setArtifacts(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/mas/state/${selectedId}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as StateResponse;
+        if (cancelled) return;
+        setArtifacts({
+          researchResults: data.researchResults ?? [],
+          insights: data.insights ?? [],
+          draft: data.draft ?? "",
+          critique: data.critique ?? null,
+          humanFeedback: data.humanFeedback ?? null,
+          revisionCount: data.revisionCount ?? 0,
+          postSize: data.postSize ?? "medium",
+          finalPostUrl: data.finalPostUrl ?? null,
+        });
+      } catch {
+        // ignora — artifacts permanece como estava
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, liveStatus]);
 
   // Poll de /api/mas/threads
   React.useEffect(() => {
@@ -118,11 +163,12 @@ export function ExecucoesView() {
         </CardHeader>
         <CardContent className="p-0 lg:p-2">
           <div className="hidden lg:block">
-            <PipelineFlow currentStatus={liveStatus} />
+            <PipelineFlow currentStatus={liveStatus} artifacts={artifacts} />
           </div>
           <div className="lg:hidden">
             <PipelineVertical
               currentStatus={liveStatus}
+              artifacts={artifacts}
               className="max-h-[480px]"
             />
           </div>
@@ -150,6 +196,14 @@ export function ExecucoesView() {
           />
         </CardContent>
       </Card>
+
+      {liveStatus === "awaiting_review" && selected && artifacts && (
+        <ReviewPopup
+          threadId={selected.threadId}
+          topic={selected.topic}
+          artifacts={artifacts}
+        />
+      )}
     </div>
   );
 }

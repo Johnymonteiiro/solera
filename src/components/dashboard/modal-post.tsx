@@ -1,6 +1,7 @@
 "use client";
 
-import { NavigatorProvider, SearchLanguage } from "@/app/MAS/types/types";
+import { POST_SIZE_RANGES } from "@/app/MAS/constants";
+import { NavigatorProvider, PostSize, SearchLanguage } from "@/app/MAS/types/types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import {
@@ -11,7 +12,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Globe, Languages, Loader2 } from "lucide-react";
+import {
+  AlignLeft,
+  BookOpen,
+  ChevronDown,
+  Globe,
+  Languages,
+  Loader2,
+  Menu,
+  type LucideIcon,
+} from "lucide-react";
 import * as React from "react";
 
 const MAX_CHARS = 300;
@@ -27,6 +37,12 @@ const LANGUAGES: { value: SearchLanguage; label: string; short: string }[] = [
   { value: "en-US", label: "English", short: "EN" },
 ];
 
+const POST_SIZES: { value: PostSize; icon: LucideIcon; short: string }[] = [
+  { value: "small", icon: AlignLeft, short: "S" },
+  { value: "medium", icon: Menu, short: "M" },
+  { value: "large", icon: BookOpen, short: "L" },
+];
+
 interface ModalPostProps {
   trigger?: React.ReactNode;
 }
@@ -36,6 +52,7 @@ export function ModalPost({ trigger }: ModalPostProps) {
   const [topic, setTopic] = React.useState("");
   const [provider, setProvider] = React.useState<NavigatorProvider>("tavily");
   const [language, setLanguage] = React.useState<SearchLanguage>("pt-BR");
+  const [postSize, setPostSize] = React.useState<PostSize>("medium");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -61,6 +78,7 @@ export function ModalPost({ trigger }: ModalPostProps) {
           topic,
           navigatorProvider: provider,
           language,
+          postSize,
         }),
       });
       const data = (await res.json()) as { threadId?: string; error?: string };
@@ -93,6 +111,8 @@ export function ModalPost({ trigger }: ModalPostProps) {
   }
 
   const currentLang = LANGUAGES.find((l) => l.value === language)!;
+  const currentSize = POST_SIZES.find((s) => s.value === postSize)!;
+  const CurrentSizeIcon = currentSize.icon;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -192,6 +212,56 @@ export function ModalPost({ trigger }: ModalPostProps) {
                     )}
                   </DropdownMenuItem>
                 ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <span className="h-4 w-px bg-[var(--border-active)]" />
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-1.5 rounded-md border border-[var(--border-active)] bg-[var(--bg-input)] px-2.5 py-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-primary)] focus:outline-none">
+                  <CurrentSizeIcon
+                    size={12}
+                    strokeWidth={2}
+                    className="text-[var(--accent-purple)]"
+                  />
+                  {POST_SIZE_RANGES[postSize].label}
+                  <ChevronDown
+                    size={11}
+                    strokeWidth={2}
+                    className="opacity-50"
+                  />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[220px]">
+                <DropdownMenuLabel className="text-[var(--text-muted)]">
+                  Tamanho do post
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {POST_SIZES.map((s) => {
+                  const range = POST_SIZE_RANGES[s.value];
+                  const Icon = s.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={s.value}
+                      onSelect={() => setPostSize(s.value)}
+                      className="flex items-start justify-between gap-2 text-[13px]"
+                    >
+                      <span className="flex items-start gap-1.5">
+                        <Icon size={12} strokeWidth={2} className="mt-0.5" />
+                        <span className="flex flex-col gap-0.5">
+                          <span>{range.label}</span>
+                          <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                            ~{range.min}-{range.max} chars · {range.hint}
+                          </span>
+                        </span>
+                      </span>
+                      {postSize === s.value && (
+                        <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[var(--accent-purple)]" />
+                      )}
+                    </DropdownMenuItem>
+                  );
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

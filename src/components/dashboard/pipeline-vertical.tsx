@@ -1,20 +1,21 @@
 "use client";
 
 import { AgentStatus } from "@/app/MAS/types/types";
+import { AgentArtifactButton } from "@/components/dashboard/agent-artifact-button";
 import {
   AGENTS,
   AgentDef,
   NodeState,
-  STATE_LABEL,
+  ThreadArtifacts,
+  badgeLabel,
   computeNodeState,
 } from "@/components/dashboard/pipeline-agents";
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
 
 const CARD_CLASSES: Record<NodeState, string> = {
-  active:
-    "border-[var(--accent-purple)] bg-[var(--accent-purple-dim)] shadow-[0_0_0_3px_rgba(123,92,240,0.14)]",
-  done: "border-[var(--border-active)] bg-[var(--bg-card)]",
+  active: "border-transparent bg-[var(--accent-purple-dim)]",
+  done: "border-transparent bg-[var(--bg-card)]",
   pending: "border-[var(--border-active)] bg-[var(--bg-card)]",
   skeleton:
     "border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)]/40",
@@ -40,7 +41,7 @@ const TITLE_CLASSES: Record<NodeState, string> = {
 const BADGE_CLASSES: Record<NodeState, string> = {
   active:
     "border-[var(--accent-purple)]/40 bg-[var(--accent-purple)]/15 text-[var(--accent-purple)]",
-  done: "border-[var(--accent-green)]/40 bg-[var(--accent-green)]/15 text-[var(--accent-green)]",
+  done: "border-[var(--accent-green)]/40 bg-transparent text-[var(--accent-green)]",
   pending:
     "border-[var(--border-active)]/60 bg-[var(--bg-input)] text-[var(--text-muted)]",
   skeleton:
@@ -52,9 +53,10 @@ const BADGE_CLASSES: Record<NodeState, string> = {
 interface VerticalNodeProps {
   agent: AgentDef;
   state: NodeState;
+  artifacts: ThreadArtifacts | null;
 }
 
-function VerticalNode({ agent, state }: VerticalNodeProps) {
+function VerticalNode({ agent, state, artifacts }: VerticalNodeProps) {
   const Icon = agent.icon;
   const isActive = state === "active";
   const isDone = state === "done";
@@ -62,10 +64,32 @@ function VerticalNode({ agent, state }: VerticalNodeProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
+        "relative flex items-center gap-3 rounded-xl border px-3 py-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.25)] transition-colors",
         CARD_CLASSES[state],
       )}
     >
+      {(isActive || isDone) && (
+        <svg
+          aria-hidden
+          className="pointer-events-none absolute inset-0 size-full overflow-visible"
+        >
+          <rect
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+            rx="12"
+            ry="12"
+            fill="none"
+            stroke={
+              isActive ? "var(--accent-purple)" : "var(--accent-green)"
+            }
+            strokeWidth="1"
+            strokeDasharray="3 3"
+            style={{ animation: "dash-march 0.6s linear infinite" }}
+          />
+        </svg>
+      )}
       <div
         className={cn(
           "relative flex size-9 shrink-0 items-center justify-center rounded-lg",
@@ -90,15 +114,22 @@ function VerticalNode({ agent, state }: VerticalNodeProps) {
           {agent.id}
         </span>
       </div>
-      <span
-        className={cn(
-          "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-[1px]",
-          BADGE_CLASSES[state],
-        )}
-      >
-        {isDone && <Check size={9} strokeWidth={3} />}
-        {STATE_LABEL[state]}
-      </span>
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[8px] uppercase tracking-[1px]",
+            BADGE_CLASSES[state],
+          )}
+        >
+          {isDone && <Check size={9} strokeWidth={3} />}
+          {badgeLabel(agent, state)}
+        </span>
+        <AgentArtifactButton
+          agent={agent}
+          state={state}
+          artifacts={artifacts}
+        />
+      </div>
     </div>
   );
 }
@@ -131,12 +162,14 @@ function Connector({ color }: ConnectorProps) {
 
 interface Props {
   currentStatus: AgentStatus;
+  artifacts?: ThreadArtifacts | null;
   errorAgentIdx?: number | null;
   className?: string;
 }
 
 export function PipelineVertical({
   currentStatus,
+  artifacts = null,
   errorAgentIdx = null,
   className,
 }: Props) {
@@ -171,7 +204,7 @@ export function PipelineVertical({
         return (
           <li key={agent.id} className="flex flex-col">
             {idx > 0 && <Connector color={color} />}
-            <VerticalNode agent={agent} state={state} />
+            <VerticalNode agent={agent} state={state} artifacts={artifacts} />
           </li>
         );
       })}
