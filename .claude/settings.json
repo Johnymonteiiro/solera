@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:blog.hootsuite.com)",
+      "WebFetch(domain:buffer.com)",
+      "WebFetch(domain:sproutsocial.com)",
+      "WebFetch(domain:www.linkedin.com)",
+      "WebFetch(domain:www.socialinsider.io)",
+      "WebFetch(domain:blog.hubspot.com)"
+    ]
+  }
+}

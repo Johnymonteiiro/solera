@@ -1,3 +1,4 @@
+import { DashboardPipelineCard } from "@/components/dashboard/dashboard-pipeline-card";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { ModalPost } from "@/components/dashboard/modal-post";
@@ -98,23 +99,7 @@ export default function DashboardPage() {
             </Card>
 
             {/* Pipeline ativo */}
-            <Card className="border-[var(--border-subtle)] bg-[var(--bg-card)] ring-0 gap-0">
-              <CardHeader className="flex-row items-center justify-between border-b border-[var(--border-subtle)] px-5 py-4">
-                <CardTitle className="text-sm font-semibold text-[var(--text-primary)]">
-                  Pipeline ativo
-                </CardTitle>
-                <span className="font-mono text-[11px] text-[var(--text-muted)]">
-                  —
-                </span>
-              </CardHeader>
-              <CardContent className="p-0">
-                <EmptyState
-                  icon={Play}
-                  title="Nenhum pipeline ativo"
-                  description="Inicie uma execução para ver os agentes"
-                />
-              </CardContent>
-            </Card>
+            <DashboardPipelineCard />
           </div>
 
           {/* Posts gerados */}

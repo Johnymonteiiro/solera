@@ -12,8 +12,21 @@ export async function searchWeb(
   }
   return navigator(navigatorProvider, {
     query,
-    maxResults: 5,
+    maxResults: 10,
     apiKey,
     language,
   });
+}
+
+// ─── Deduplicação por URL ─────────────────────────────────────────────────────
+export function deduplicateAndRank(results: ResearchResult[]): ResearchResult[] {
+  const seen = new Set<string>();
+  return results
+    .filter((r) => {
+      if (seen.has(r.url)) return false;
+      seen.add(r.url);
+      return true;
+    })
+    .sort((a, b) => b.relevanceScore - a.relevanceScore)
+    .slice(0, 10);
 }

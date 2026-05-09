@@ -122,6 +122,12 @@
   --topbar-h:      56px;
 }
 
+@keyframes dash-march {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
