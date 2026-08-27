@@ -1,6 +1,7 @@
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { getSession } from "@/lib/sessions"
+import { NotificationsBell } from "@/components/dashboard/notifications-bell"
 import { UserAvatarMenu } from "@/components/dashboard/user-avatar-menu"
 
 interface TopbarProps {
@@ -31,6 +32,7 @@ export async function Topbar({ title, subtitle, actions }: TopbarProps) {
 
       <div className="flex items-center gap-2.5">
         {actions}
+        <NotificationsBell />
         {session && (
           <UserAvatarMenu name={session.name} email={session.email} />
         )}

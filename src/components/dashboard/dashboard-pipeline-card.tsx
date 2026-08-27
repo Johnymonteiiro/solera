@@ -4,16 +4,17 @@ import { AgentStatus, StatusEvent } from "@/app/MAS/types/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { PipelineVertical } from "@/components/dashboard/pipeline-vertical";
+import { ThreadArtifacts } from "@/components/dashboard/pipeline-agents";
 import { Play } from "lucide-react";
 import * as React from "react";
 
 const POLL_MS = 5_000;
-const TERMINAL: AgentStatus[] = ["done", "error"];
+const TERMINAL: AgentStatus[] = ["done", "stopped", "error"];
 const IN_PROGRESS: AgentStatus[] = [
   "researching",
   "analyzing",
   "writing",
-  "critiquing",
+  "judging",
   "revising",
   "publishing",
 ];
@@ -25,9 +26,17 @@ interface ThreadSummary {
   status: AgentStatus;
 }
 
+interface StateResponse extends ThreadArtifacts {
+  threadId: string;
+  status: AgentStatus;
+}
+
 export function DashboardPipelineCard() {
   const [thread, setThread] = React.useState<ThreadSummary | null>(null);
   const [liveStatus, setLiveStatus] = React.useState<AgentStatus>("idle");
+  const [artifacts, setArtifacts] = React.useState<ThreadArtifacts | null>(
+    null,
+  );
   const esRef = React.useRef<EventSource | null>(null);
 
   const refreshThreads = React.useCallback(async () => {
@@ -54,11 +63,50 @@ export function DashboardPipelineCard() {
       void refreshThreads();
     };
     window.addEventListener("mas:thread-created", handler);
+    window.addEventListener("mas:refresh", handler);
     return () => {
       clearInterval(interval);
       window.removeEventListener("mas:thread-created", handler);
+      window.removeEventListener("mas:refresh", handler);
     };
   }, [refreshThreads]);
+
+  // Busca artefatos sempre que o status do thread mudar — necessário para o
+  // StuckToast saber stoppedReason, judgeRetries e judgement.score.
+  React.useEffect(() => {
+    if (!thread) {
+      setArtifacts(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/mas/state/${thread.threadId}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as StateResponse;
+        if (cancelled) return;
+        setArtifacts({
+          researchResults: data.researchResults ?? [],
+          insights: data.insights ?? [],
+          draft: data.draft ?? "",
+          judgement: data.judgement ?? null,
+          humanFeedback: data.humanFeedback ?? null,
+          revisionCount: data.revisionCount ?? 0,
+          judgeRetries: data.judgeRetries ?? 0,
+          stoppedReason: data.stoppedReason ?? null,
+          postSize: data.postSize ?? "medium",
+          finalPostUrl: data.finalPostUrl ?? null,
+        });
+      } catch {
+        // ignora — artifacts permanece como estava
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [thread, liveStatus]);
 
   React.useEffect(() => {
     esRef.current?.close();
@@ -100,7 +148,9 @@ export function DashboardPipelineCard() {
     ? TERMINAL.includes(liveStatus)
       ? liveStatus === "error"
         ? "falhou"
-        : "finalizado"
+        : liveStatus === "stopped"
+          ? "cancelado"
+          : "finalizado"
       : "rodando"
     : "ocioso";
 
@@ -132,6 +182,7 @@ export function DashboardPipelineCard() {
         {thread ? (
           <PipelineVertical
             currentStatus={liveStatus}
+            artifacts={artifacts}
             className="max-h-[420px]"
           />
         ) : (

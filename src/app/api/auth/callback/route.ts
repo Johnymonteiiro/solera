@@ -1,3 +1,4 @@
+import { resolveLinkedIn } from "@/app/MAS/lib/settingsStore";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createSession } from "../../../../lib/sessions";
@@ -19,15 +20,16 @@ export async function GET(req: NextRequest) {
   }
 
   // Troca o code pelo access_token
+  const linkedin = resolveLinkedIn();
   const tokenRes = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
-      redirect_uri: process.env.LINKEDIN_REDIRECT_URI!,
-      client_id: process.env.LINKEDIN_CLIENT_ID!,
-      client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
+      redirect_uri: linkedin.redirectUri ?? "",
+      client_id: linkedin.clientId ?? "",
+      client_secret: linkedin.clientSecret ?? "",
     }),
   });
 

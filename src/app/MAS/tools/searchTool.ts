@@ -1,6 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { NavigatorProvider } from "../types/types";
+import { getSearchToolConfig } from "../lib/settingsStore";
 import { deduplicateAndRank, searchWeb } from "./search";
 
 const schema = z.object({
@@ -16,8 +16,8 @@ const schema = z.object({
 
 export const searchTool = tool(
   async ({ query, language }): Promise<string> => {
-    const provider = (process.env.DEFAULT_NAVIGATOR as NavigatorProvider) ?? "tavily";
-    const raw = await searchWeb(query, provider, language);
+    const { provider, maxResults } = await getSearchToolConfig();
+    const raw = await searchWeb(query, provider, language, maxResults);
     const results = deduplicateAndRank(raw);
     return JSON.stringify(results);
   },

@@ -1,13 +1,24 @@
+import { GRAPH_RECURSION_LIMIT } from "@/app/MAS/constants";
 import { getGraph } from "@/app/MAS/graph/graph";
+import { flushCheckpointer } from "@/app/MAS/lib/checkpointer";
 import { emitEvent } from "@/app/MAS/lib/threadStore";
+import { HumanDecision } from "@/app/MAS/types/types";
+import { getSession } from "@/lib/sessions";
 import { Command } from "@langchain/langgraph";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+const VALID_DECISIONS: HumanDecision[] = [
+  "approve",
+  "reject",
+  "restart_research",
+  "stop",
+];
+
 interface ReviewBody {
   threadId?: string;
-  decision?: "approve" | "reject";
+  decision?: HumanDecision;
   comments?: string;
 }
 
@@ -26,12 +37,26 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  if (decision !== "approve" && decision !== "reject") {
+  if (!VALID_DECISIONS.includes(decision)) {
     return NextResponse.json(
-      { error: "decision deve ser 'approve' ou 'reject'" },
+      {
+        error: `decision deve ser uma de: ${VALID_DECISIONS.join(", ")}`,
+      },
       { status: 400 },
     );
   }
+
+  // Pra approve, precisamos do access token do LinkedIn (publisher vai usar).
+  // Lê a sessão AGORA, antes do background async, porque cookies() depende
+  // do request context que se perde após o response retornar.
+  const session = await getSession();
+  if (decision === "approve" && !session?.accessToken) {
+    return NextResponse.json(
+      { error: "Sessão LinkedIn ausente. Faça login em /login antes de publicar." },
+      { status: 401 },
+    );
+  }
+  const accessToken = session?.accessToken;
 
   const graph = getGraph();
   const feedback = {
@@ -41,19 +66,27 @@ export async function POST(req: NextRequest) {
   };
 
   // Resume o grafo em background — o SSE em /stream/[threadId] entrega
-  // os eventos seguintes (revising/critiquing/awaiting_review/publishing/done).
+  // os eventos seguintes (revising/judging/awaiting_review/publishing/done).
   void (async () => {
     try {
       await graph.invoke(new Command({ resume: feedback }), {
-        configurable: { thread_id: threadId },
+        configurable: { thread_id: threadId, accessToken },
+        recursionLimit: GRAPH_RECURSION_LIMIT,
       });
 
       const snapshot = await graph.getState({
         configurable: { thread_id: threadId },
       });
       const isPaused = (snapshot?.next?.length ?? 0) > 0;
+      flushCheckpointer();
       if (!isPaused) {
-        emitEvent(threadId, { type: "done", threadId });
+        // Se o usuário cancelou no HITL, status final é "stopped" e o publisher
+        // não rodou — emitir "done" faria a UI marcar todos os agentes (inclusive
+        // publisher) como concluídos, o que é mentira. Propagar o status real.
+        const finalStatus = snapshot?.values?.status === "stopped"
+          ? "stopped"
+          : "done";
+        emitEvent(threadId, { type: finalStatus, threadId });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

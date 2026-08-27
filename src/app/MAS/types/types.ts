@@ -19,17 +19,36 @@ export interface ResearchResult {
 }
 
 
-export interface CritiqueResult {
+export interface JudgeResult {
   score: number; // 0–10 overall
   hookQuality: number; // 0–10
+  originality: number; // 0–10
+  scannability: number; // 0–10
+  ctaQuality: number; // 0–10
   lengthAdequate: boolean;
   toneLinkedIn: boolean;
+  hasEngagementBait: boolean;
+  hasExternalLinkInBody: boolean;
   issues: string[];
   suggestions: string[];
 }
 
+// Procedência de uma avaliação do Judge. Sem isto, uma nota no dataset é
+// irreproduzível: o rubric efetivo depende de `agent-config.json` (mutável em
+// runtime pela tela /agentes) e o modelo vem de env var. `rubricHash` cobre os
+// dois — muda se alguém editar o prompt do código OU a config.
+export interface JudgeRunMeta {
+  model: string;
+  temperature: number;
+  /** sha256 (16 hex) de role + promptOverride + template do rubric. */
+  rubricHash: string;
+  judgedAt: string; // ISO 8601
+}
+
+export type HumanDecision = "approve" | "reject" | "restart_research" | "stop";
+
 export interface HumanFeedback {
-  decision: "approve" | "reject";
+  decision: HumanDecision;
   comments?: string;
   timestamp: string; // ISO 8601
 }
@@ -41,22 +60,34 @@ export type AgentStatus =
   | "researching"
   | "analyzing"
   | "writing"
-  | "critiquing"
+  | "judging"
   | "awaiting_review"
   | "revising"
   | "publishing"
   | "done"
+  | "stopped"
   | "error";
 
   
 // ─── Payloads SSE ─────────────────────────────────────────────────────────────
+export type StoppedReason =
+  | "no_research_results"
+  | "user_cancel"
+  | "max_judge_retries";
+
 export interface StatusEvent {
   type: AgentStatus;
   threadId: string;
   payload?: {
     draft?: string;
-    critique?: CritiqueResult;
+    judgement?: JudgeResult;
+    judgeMeta?: JudgeRunMeta;
+    insights?: string[];
+    researchResults?: ResearchResult[];
     revisionCount?: number;
+    judgeRetries?: number;
+    stuck?: boolean;
+    stoppedReason?: StoppedReason;
     finalPostUrl?: string;
     error?: string;
   };
@@ -88,4 +119,15 @@ export interface ResultResponse {
   finalPostUrl: string | null;
   status: AgentStatus;
   draft?: string;
+}
+
+// ─── Persistência de posts publicados ─────────────────────────────────────────
+export interface PublishedPost {
+  threadId: string;
+  topic: string;
+  draft: string;
+  finalPostUrl: string;
+  language: SearchLanguage;
+  postSize: PostSize;
+  publishedAt: string; // ISO 8601
 }
