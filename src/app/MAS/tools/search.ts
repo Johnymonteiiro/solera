@@ -1,3 +1,4 @@
+import { resolveApiKey } from "../lib/settingsStore";
 import { NavigatorProvider, ResearchResult, SearchLanguage } from "../types/types";
 import { navigator } from "./navigators/navigators";
 
@@ -5,14 +6,17 @@ export async function searchWeb(
   query: string,
   navigatorProvider: NavigatorProvider,
   language: SearchLanguage = "pt-BR",
+  maxResults: number = 10,
 ): Promise<ResearchResult[]> {
-  const apiKey = process.env[navigatorProvider === "tavily" ? "TAVILY_API_KEY" : "BRAVE_API_KEY"];
+  const apiKey = resolveApiKey(
+    navigatorProvider === "tavily" ? "TAVILY_API_KEY" : "BRAVE_API_KEY",
+  );
   if (!apiKey) {
-    throw new Error(`API key para ${navigatorProvider} não encontrada. Por favor, defina a variável de ambiente correspondente.`);
+    throw new Error(`API key para ${navigatorProvider} não encontrada. Defina em Configurações ou no .env.`);
   }
   return navigator(navigatorProvider, {
     query,
-    maxResults: 10,
+    maxResults,
     apiKey,
     language,
   });

@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  CritiqueResult,
+  JudgeResult,
   HumanFeedback,
   ResearchResult,
 } from "@/app/MAS/types/types";
@@ -61,8 +61,8 @@ function ArtifactRenderer({ artifactKey, value }: RendererProps) {
       return <InsightsList items={value as string[]} />;
     case "draft":
       return <DraftView text={value as string} />;
-    case "critique":
-      return <CritiqueView critique={value as CritiqueResult | null} />;
+    case "judgement":
+      return <JudgementView judgement={value as JudgeResult | null} />;
     case "humanFeedback":
       return <FeedbackView feedback={value as HumanFeedback | null} />;
     case "finalPostUrl":
@@ -138,23 +138,32 @@ function DraftView({ text }: { text: string }) {
   );
 }
 
-function CritiqueView({ critique }: { critique: CritiqueResult | null }) {
-  if (!critique) return null;
+function JudgementView({ judgement }: { judgement: JudgeResult | null }) {
+  if (!judgement) return null;
   return (
     <div className="flex flex-col gap-2">
       <h4 className="text-xs font-semibold text-[var(--text-primary)]">
         Crítica
       </h4>
-      <div className="flex items-center gap-3 font-mono text-[11px] text-[var(--text-secondary)]">
-        <span>score {critique.score}/10</span>
-        <span>hook {critique.hookQuality}/10</span>
-        <span>tom LinkedIn: {critique.toneLinkedIn ? "ok" : "não"}</span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-[var(--text-secondary)]">
+        <span>score {judgement.score}/10</span>
+        <span>hook {judgement.hookQuality}/10</span>
+        <span>originalidade {judgement.originality}/10</span>
+        <span>scannability {judgement.scannability}/10</span>
+        <span>cta {judgement.ctaQuality}/10</span>
+        <span>tom LinkedIn: {judgement.toneLinkedIn ? "ok" : "não"}</span>
       </div>
-      {critique.issues.length > 0 && (
-        <Section title="Problemas" items={critique.issues} />
+      {(judgement.hasEngagementBait || judgement.hasExternalLinkInBody) && (
+        <div className="flex flex-wrap gap-1 font-mono text-[10px] text-[var(--accent-red)]">
+          {judgement.hasEngagementBait && <span>⚠ engagement bait</span>}
+          {judgement.hasExternalLinkInBody && <span>⚠ link no corpo</span>}
+        </div>
       )}
-      {critique.suggestions.length > 0 && (
-        <Section title="Sugestões" items={critique.suggestions} />
+      {judgement.issues.length > 0 && (
+        <Section title="Problemas" items={judgement.issues} />
+      )}
+      {judgement.suggestions.length > 0 && (
+        <Section title="Sugestões" items={judgement.suggestions} />
       )}
     </div>
   );

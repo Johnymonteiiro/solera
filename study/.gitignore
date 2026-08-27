@@ -1,0 +1,13 @@
+# Artefatos gerados pela análise
+analysis/out/
+analysis/.venv/
+__pycache__/
+
+# Dados sintéticos do --demo (regeneráveis: python quality_study.py --demo)
+data/demo/
+
+# Arquivo morto da demo antiga — pode apagar
+_arquivo-demo-antiga/
+
+# Dados (descomente se NÃO quiser versionar os CSVs reais do estudo)
+# data/
