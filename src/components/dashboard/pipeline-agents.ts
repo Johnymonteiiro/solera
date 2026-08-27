@@ -1,9 +1,10 @@
 import {
   AgentStatus,
-  CritiqueResult,
+  JudgeResult,
   HumanFeedback,
   PostSize,
   ResearchResult,
+  StoppedReason,
 } from "@/app/MAS/types/types";
 import {
   Brain,
@@ -15,15 +16,23 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type NodeState = "active" | "done" | "pending" | "skeleton" | "error";
+export type NodeState =
+  | "active"
+  | "done"
+  | "pending"
+  | "skeleton"
+  | "error"
+  | "stopped";
 
 export interface ThreadArtifacts {
   researchResults: ResearchResult[];
   insights: string[];
   draft: string;
-  critique: CritiqueResult | null;
+  judgement: JudgeResult | null;
   humanFeedback: HumanFeedback | null;
   revisionCount: number;
+  judgeRetries: number;
+  stoppedReason: StoppedReason | null;
   postSize: PostSize;
   finalPostUrl: string | null;
 }
@@ -74,13 +83,13 @@ export const AGENTS: AgentDef[] = [
     artifact: { label: "ver rascunho", key: "draft" },
   },
   {
-    id: "critic",
-    label: "Critic",
+    id: "judge",
+    label: "Judge",
     icon: ShieldCheck,
-    statuses: ["critiquing"],
+    statuses: ["judging"],
     implemented: true,
     activeLabel: "avaliando...",
-    artifact: { label: "ver crítica", key: "critique" },
+    artifact: { label: "ver crítica", key: "judgement" },
   },
   {
     id: "hitl",
@@ -108,6 +117,7 @@ export const STATE_LABEL: Record<NodeState, string> = {
   pending: "pendente",
   skeleton: "em breve",
   error: "erro",
+  stopped: "cancelado",
 };
 
 export function badgeLabel(agent: AgentDef, state: NodeState): string {
@@ -131,12 +141,27 @@ export function computeNodeState(
   agent: AgentDef,
   currentStatus: AgentStatus,
   errorAgentIdx: number | null = null,
+  stoppedReason: StoppedReason | null = null,
 ): NodeState {
   const thisIdx = AGENTS.findIndex((a) => a.id === agent.id);
+  const hitlIdx = AGENTS.findIndex((a) => a.id === "hitl");
+  const researcherIdx = AGENTS.findIndex((a) => a.id === "researcher");
 
   if (currentStatus === "error") {
     if (errorAgentIdx !== null && errorAgentIdx === thisIdx) return "error";
     if (errorAgentIdx !== null && thisIdx < errorAgentIdx) return "done";
+    return agent.implemented ? "pending" : "skeleton";
+  }
+
+  // Cancelado: o ponto de parada depende do motivo.
+  // - no_research_results: researcher abortou; nenhum agente downstream rodou.
+  // - user_cancel (no HITL): tudo até o judge completou; HITL é o stop point.
+  // - default (sem reason): HITL é o stop point (compat).
+  if (currentStatus === "stopped") {
+    const stopIdx =
+      stoppedReason === "no_research_results" ? researcherIdx : hitlIdx;
+    if (thisIdx < stopIdx) return "done";
+    if (thisIdx === stopIdx) return "stopped";
     return agent.implemented ? "pending" : "skeleton";
   }
 

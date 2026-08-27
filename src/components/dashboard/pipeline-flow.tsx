@@ -40,6 +40,8 @@ const CARD_CLASSES: Record<NodeState, string> = {
     "border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)]/40 text-[var(--text-muted)]",
   error:
     "border-[var(--accent-red)]/60 bg-[var(--accent-red-dim)] text-[var(--accent-red)]",
+  stopped:
+    "border-[var(--text-muted)]/40 bg-[var(--bg-input)]/60 text-[var(--text-muted)]",
 };
 
 const ICON_WRAP_CLASSES: Record<NodeState, string> = {
@@ -48,6 +50,7 @@ const ICON_WRAP_CLASSES: Record<NodeState, string> = {
   pending: "bg-[var(--bg-input)] text-[var(--text-secondary)]",
   skeleton: "bg-[var(--bg-input)]/50 text-[var(--text-muted)]",
   error: "bg-[var(--accent-red)]/15 text-[var(--accent-red)]",
+  stopped: "bg-[var(--bg-input)] text-[var(--text-muted)]",
 };
 
 const BADGE_CLASSES: Record<NodeState, string> = {
@@ -60,6 +63,8 @@ const BADGE_CLASSES: Record<NodeState, string> = {
     "border border-dashed border-[var(--border-subtle)] bg-transparent text-[var(--text-muted)]",
   error:
     "border border-[var(--accent-red)]/40 bg-[var(--accent-red)]/15 text-[var(--accent-red)]",
+  stopped:
+    "border border-[var(--text-muted)]/40 bg-[var(--bg-input)] text-[var(--text-muted)]",
 };
 
 interface AgentNodeData extends Record<string, unknown> {
@@ -77,7 +82,10 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
   return (
     <div
       className={cn(
-        "relative flex flex-col items-center justify-center gap-1.5 rounded-xl border px-3 py-3.5 shadow-[0_4px_16px_rgba(0,0,0,0.25)] transition-colors",
+        // pointer-events-auto: react-flow v12 desliga eventos do node quando
+        // todas as interações estão off (nodesDraggable/Selectable/etc).
+        // Forçar auto garante que o PopoverTrigger interno receba clicks.
+        "pointer-events-auto relative flex flex-col items-center justify-center gap-1.5 rounded-xl border px-3 py-3.5 shadow-[0_4px_16px_rgba(0,0,0,0.25)] transition-colors",
         CARD_CLASSES[state],
       )}
       style={{ width: NODE_W }}
@@ -119,7 +127,7 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
         <Icon size={16} strokeWidth={1.75} className="relative" />
       </div>
       <span className="text-[12px] font-medium">{agent.label}</span>
-      <div className="flex flex-col gap-1 z-100 nodrag">
+      <div className="relative z-[100] flex flex-col gap-1 pointer-events-auto nodrag">
         <span
           className={cn(
             "inline-flex items-center gap-1 rounded-full p-1 font-mono text-[6px] uppercase tracking-[1px]",
@@ -151,13 +159,14 @@ function buildNodes(
   errorAgentIdx: number | null,
   artifacts: ThreadArtifacts | null,
 ): Node<AgentNodeData>[] {
+  const stoppedReason = artifacts?.stoppedReason ?? null;
   return AGENTS.map((agent, idx) => ({
     id: agent.id,
     type: "agent",
     position: { x: idx * (NODE_W + NODE_GAP), y: NODE_Y },
     data: {
       agent,
-      state: computeNodeState(agent, currentStatus, errorAgentIdx),
+      state: computeNodeState(agent, currentStatus, errorAgentIdx, stoppedReason),
       artifacts,
     },
     draggable: false,
@@ -168,11 +177,22 @@ function buildNodes(
 function buildEdges(
   currentStatus: AgentStatus,
   errorAgentIdx: number | null,
+  stoppedReason: ThreadArtifacts["stoppedReason"] = null,
 ): Edge[] {
   return AGENTS.slice(0, -1).map((agent, idx) => {
     const next = AGENTS[idx + 1];
-    const sourceState = computeNodeState(agent, currentStatus, errorAgentIdx);
-    const targetState = computeNodeState(next, currentStatus, errorAgentIdx);
+    const sourceState = computeNodeState(
+      agent,
+      currentStatus,
+      errorAgentIdx,
+      stoppedReason,
+    );
+    const targetState = computeNodeState(
+      next,
+      currentStatus,
+      errorAgentIdx,
+      stoppedReason,
+    );
 
     const isDoneEdge = sourceState === "done";
     const isActiveEdge = targetState === "active";
@@ -216,8 +236,8 @@ export function PipelineFlow({
     [currentStatus, errorAgentIdx, artifacts],
   );
   const edges = React.useMemo(
-    () => buildEdges(currentStatus, errorAgentIdx),
-    [currentStatus, errorAgentIdx],
+    () => buildEdges(currentStatus, errorAgentIdx, artifacts?.stoppedReason ?? null),
+    [currentStatus, errorAgentIdx, artifacts?.stoppedReason],
   );
 
   return (

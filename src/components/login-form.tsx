@@ -81,7 +81,6 @@ export function LoginForm({
           </form>
         </CardContent>
       </Card>
-
       <FieldDescription className="px-4 text-center text-xs text-[var(--text-muted)]">
         Ao continuar, você concorda com os{" "}
         <a

@@ -1,10 +1,29 @@
 import { ToolMessage } from "@langchain/core/messages";
-import { researcherAgent } from "../agents/researcher.agent";
+import type { LangGraphRunnableConfig } from "@langchain/langgraph";
+import { makeResearcherAgent } from "../agents/researcher.agent";
+import { getAgentConfig } from "../lib/configStore";
+import { emitEvent } from "../lib/threadStore";
 import { State } from "../states/states";
 import { deduplicateAndRank } from "../tools/search";
 import { ResearchResult } from "../types/types";
 
-export async function researcherNode(state: State): Promise<Partial<State>> {
+export async function researcherNode(
+  state: State,
+  config: LangGraphRunnableConfig,
+): Promise<Partial<State>> {
+  const threadId = config.configurable?.thread_id as string | undefined;
+
+  // Desativado na config (/agentes): passthrough (pipeline pode quebrar — avisado na UI).
+  if (state.disabledAgents?.includes("researcher")) {
+    console.warn("[researcher] desativado na config — pulando pesquisa");
+    return { researchResults: [], status: "researching" };
+  }
+
+  const cfg = await getAgentConfig();
+  const researcherAgent = makeResearcherAgent(
+    cfg.researcher.role,
+    cfg.researcher.promptOverride,
+  );
   const result = await researcherAgent.invoke({
     messages: [{ role: "user", content: state.topic }],
   });
@@ -25,6 +44,36 @@ export async function researcherNode(state: State): Promise<Partial<State>> {
 
   const researchResults = deduplicateAndRank(collected);
   console.log(`[researcher] coletou ${researchResults.length} fontes únicas`);
+
+  // Tópico inválido (nonsense) → Tavily retorna 0 fontes. Aborta o pipeline
+  // ANTES de gastar LLM em analyst/writer. routeAfterResearcher manda pra END.
+  if (researchResults.length === 0) {
+    console.warn(
+      `[researcher] tópico "${state.topic}" não retornou fontes — abortando pipeline`,
+    );
+    if (threadId) {
+      emitEvent(threadId, {
+        type: "stopped",
+        threadId,
+        payload: { stoppedReason: "no_research_results" },
+      });
+    }
+    return {
+      researchResults: [],
+      status: "stopped",
+      stoppedReason: "no_research_results",
+    };
+  }
+
+  // Persiste as fontes no threadStore (via payload) para sobreviverem a
+  // restart mesmo se o checkpoint for perdido — igual judgement/draft.
+  if (threadId) {
+    emitEvent(threadId, {
+      type: "researching",
+      threadId,
+      payload: { researchResults },
+    });
+  }
 
   return {
     researchResults,

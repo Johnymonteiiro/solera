@@ -2,7 +2,10 @@
 
 import { AgentStatus, StatusEvent } from "@/app/MAS/types/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExecutionRow, ExecutionsTable } from "./executions-table";
+import {
+  RecentExecutionsList,
+  ThreadSummary,
+} from "./recent-executions-list";
 import { ThreadArtifacts } from "./pipeline-agents";
 import { PipelineFlow } from "./pipeline-flow";
 import { PipelineVertical } from "./pipeline-vertical";
@@ -10,10 +13,10 @@ import { ReviewPopup } from "./review-popup";
 import * as React from "react";
 
 const POLL_INTERVAL_MS = 5_000;
-const TERMINAL: AgentStatus[] = ["done", "error"];
+const TERMINAL: AgentStatus[] = ["done", "stopped", "error"];
 
 interface ThreadsResponse {
-  threads: ExecutionRow[];
+  threads: ThreadSummary[];
 }
 
 interface StateResponse extends ThreadArtifacts {
@@ -22,7 +25,7 @@ interface StateResponse extends ThreadArtifacts {
 }
 
 export function ExecucoesView() {
-  const [rows, setRows] = React.useState<ExecutionRow[]>([]);
+  const [rows, setRows] = React.useState<ThreadSummary[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [liveStatus, setLiveStatus] = React.useState<AgentStatus>("idle");
@@ -51,9 +54,11 @@ export function ExecucoesView() {
           researchResults: data.researchResults ?? [],
           insights: data.insights ?? [],
           draft: data.draft ?? "",
-          critique: data.critique ?? null,
+          judgement: data.judgement ?? null,
           humanFeedback: data.humanFeedback ?? null,
           revisionCount: data.revisionCount ?? 0,
+          judgeRetries: data.judgeRetries ?? 0,
+          stoppedReason: data.stoppedReason ?? null,
           postSize: data.postSize ?? "medium",
           finalPostUrl: data.finalPostUrl ?? null,
         });
@@ -188,11 +193,11 @@ export function ExecucoesView() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <ExecutionsTable
+          <RecentExecutionsList
             rows={rows}
+            loading={loading}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            loading={loading}
           />
         </CardContent>
       </Card>

@@ -20,6 +20,7 @@ const CARD_CLASSES: Record<NodeState, string> = {
   skeleton:
     "border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)]/40",
   error: "border-[var(--accent-red)]/60 bg-[var(--accent-red-dim)]",
+  stopped: "border-[var(--text-muted)]/40 bg-[var(--bg-input)]/60",
 };
 
 const ICON_WRAP_CLASSES: Record<NodeState, string> = {
@@ -28,6 +29,7 @@ const ICON_WRAP_CLASSES: Record<NodeState, string> = {
   pending: "bg-[var(--bg-input)] text-[var(--text-secondary)]",
   skeleton: "bg-[var(--bg-input)]/50 text-[var(--text-muted)]",
   error: "bg-[var(--accent-red)]/15 text-[var(--accent-red)]",
+  stopped: "bg-[var(--bg-input)] text-[var(--text-muted)]",
 };
 
 const TITLE_CLASSES: Record<NodeState, string> = {
@@ -36,6 +38,7 @@ const TITLE_CLASSES: Record<NodeState, string> = {
   pending: "text-[var(--text-secondary)]",
   skeleton: "text-[var(--text-muted)]",
   error: "text-[var(--accent-red)]",
+  stopped: "text-[var(--text-muted)] line-through",
 };
 
 const BADGE_CLASSES: Record<NodeState, string> = {
@@ -48,6 +51,8 @@ const BADGE_CLASSES: Record<NodeState, string> = {
     "border-dashed border-[var(--border-subtle)] bg-transparent text-[var(--text-muted)]",
   error:
     "border-[var(--accent-red)]/40 bg-[var(--accent-red)]/15 text-[var(--accent-red)]",
+  stopped:
+    "border-[var(--text-muted)]/40 bg-[var(--bg-input)] text-[var(--text-muted)]",
 };
 
 interface VerticalNodeProps {
@@ -174,6 +179,7 @@ export function PipelineVertical({
   className,
 }: Props) {
   const isError = currentStatus === "error";
+  const stoppedReason = artifacts?.stoppedReason ?? null;
 
   return (
     <ul
@@ -183,10 +189,20 @@ export function PipelineVertical({
       )}
     >
       {AGENTS.map((agent, idx) => {
-        const state = computeNodeState(agent, currentStatus, errorAgentIdx);
+        const state = computeNodeState(
+          agent,
+          currentStatus,
+          errorAgentIdx,
+          stoppedReason,
+        );
         const prevState =
           idx > 0
-            ? computeNodeState(AGENTS[idx - 1], currentStatus, errorAgentIdx)
+            ? computeNodeState(
+                AGENTS[idx - 1],
+                currentStatus,
+                errorAgentIdx,
+                stoppedReason,
+              )
             : null;
         const isActiveEdge = prevState !== null && state === "active";
         const isErrorEdge =

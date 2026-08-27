@@ -1,6 +1,7 @@
 import { AIMessage } from "@langchain/core/messages";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
-import { analystAgent } from "../agents/analyst.agent";
+import { makeAnalystAgent } from "../agents/analyst.agent";
+import { getAgentConfig } from "../lib/configStore";
 import { emitEvent } from "../lib/threadStore";
 import { State } from "../states/states";
 import { ResearchResult } from "../types/types";
@@ -40,6 +41,14 @@ export async function analystNode(
     emitEvent(threadId, { type: "analyzing", threadId });
   }
 
+  // Desativado na config: passthrough (sem insights — pipeline pode quebrar, avisado).
+  if (state.disabledAgents?.includes("analyst")) {
+    console.warn("[analyst] desativado na config — sem insights");
+    return { insights: [], status: "analyzing" };
+  }
+
+  const cfg = await getAgentConfig();
+  const analystAgent = makeAnalystAgent(cfg.analyst.role, cfg.analyst.promptOverride);
   const payload = formatPayloadForAnalyst(state.topic, state.researchResults);
   const result = await analystAgent.invoke({
     messages: [{ role: "user", content: payload }],
@@ -55,7 +64,12 @@ export async function analystNode(
   let discardedCount = 0;
 
   try {
-    const parsed = JSON.parse(raw) as AnalystOutput;
+    // O modelo às vezes embrulha o JSON em ```json ... ``` (cercas markdown).
+    // Extrai o primeiro objeto {...} antes de parsear — senão JSON.parse quebra
+    // e o pipeline aborta por "0 insights".
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("nenhum objeto JSON no content");
+    const parsed = JSON.parse(jsonMatch[0]) as AnalystOutput;
     if (Array.isArray(parsed.insights)) {
       insights = parsed.insights.filter(
         (x): x is string => typeof x === "string" && x.trim().length > 0,
@@ -76,6 +90,12 @@ export async function analystNode(
     console.warn(
       `[analyst] insights insuficientes (${insights.length}) — pipeline abortará`,
     );
+  }
+
+  // Persiste os insights no threadStore (via payload) para sobreviverem a
+  // restart mesmo se o checkpoint for perdido — igual judgement/draft.
+  if (threadId && insights.length) {
+    emitEvent(threadId, { type: "analyzing", threadId, payload: { insights } });
   }
 
   return {

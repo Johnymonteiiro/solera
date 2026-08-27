@@ -9,7 +9,6 @@ export interface Session {
   name: string;
   email: string;
 }
-
 export async function createSession(data: Session) {
   const token = await new SignJWT({ ...data })
     .setProtectedHeader({ alg: "HS256" })

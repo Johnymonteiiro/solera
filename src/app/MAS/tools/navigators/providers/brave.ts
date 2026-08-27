@@ -1,3 +1,4 @@
+import { resolveApiKey } from "@/app/MAS/lib/settingsStore";
 import { NavigatorOptions, ResearchResult } from "@/app/MAS/types/types";
 
 
@@ -16,8 +17,10 @@ export async function searchBrave(options: NavigatorOptions): Promise<ResearchRe
     country,
   });
 
+  const braveUrl =
+    resolveApiKey("BRAVE_URL") ?? "https://api.search.brave.com/res/v1/web/search?";
   const response = await fetch(
-    `${process.env.BRAVE_URL}${params}`,
+    `${braveUrl}${params}`,
     {
       headers: {
         Accept: "application/json",

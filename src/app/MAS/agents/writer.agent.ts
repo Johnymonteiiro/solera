@@ -1,5 +1,5 @@
 import { createAgent } from "langchain";
-import { base_llm } from "../models/openAI/llm";
+import { getBaseLlm } from "../models/openAI/llm";
 
 
 interface writerAgentProps {
@@ -9,7 +9,7 @@ interface writerAgentProps {
 export async function writerAgent ({prompts, insightsList}: writerAgentProps) {
 
  const writer_agent = createAgent({
-  model: base_llm,
+  model: getBaseLlm(),
   systemPrompt: prompts,
 });
 

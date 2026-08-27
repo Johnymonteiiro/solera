@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { type LucideIcon } from "lucide-react";
 
-type TrendType = "up" | "down" | "flat";
+type TrendType = "up" | "down" | "flat" | "warning";
 
 interface KpiCardProps {
   label: string;
@@ -16,12 +16,14 @@ const trendStyles: Record<TrendType, string> = {
   up: "bg-[var(--accent-green-dim)] text-[var(--accent-green)]",
   down: "bg-[var(--accent-red-dim)] text-[var(--accent-red)]",
   flat: "bg-[var(--bg-input)] text-[var(--text-secondary)]",
+  warning: "bg-[var(--accent-amber-dim)] text-[var(--accent-amber)]",
 };
 
 const trendPrefix: Record<TrendType, string> = {
   up: "↑",
   down: "↓",
   flat: "→",
+  warning: "●",
 };
 
 export function KpiCard({

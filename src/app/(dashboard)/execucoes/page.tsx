@@ -1,5 +1,5 @@
 import { ExecucoesView } from "@/components/dashboard/execucoes-view";
-import { ModalPost } from "@/components/dashboard/modal-post";
+import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { Topbar } from "@/components/dashboard/topbar";
 
 export default function Page() {
@@ -8,7 +8,7 @@ export default function Page() {
       <Topbar
         title="Execuções"
         subtitle="pipeline dos agentes"
-        actions={<ModalPost />}
+        actions={<RefreshButton />}
       />
       <div className="flex-1 overflow-y-auto p-7">
         <ExecucoesView />

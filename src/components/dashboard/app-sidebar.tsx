@@ -4,17 +4,24 @@ import {
   Activity,
   BarChart3,
   Bot,
-  Eye,
   FileText,
+  FlaskConical,
   HelpCircle,
   LayoutDashboard,
-  MessageSquare,
-  Play,
   Settings,
   Wrench,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+type NavItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  badge?: string;
+  badgeVariant?: "purple" | "amber" | "new";
+};
 
 import {
   Sidebar,
@@ -33,34 +40,20 @@ import Image from "next/image";
 
 import ImageURL from "@/assets/logo.png";
 
-const navPrincipal = [
+const navPrincipal: NavItem[] = [
   {
     label: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
   },
   {
-    label: "Execuções",
-    href: "/execucoes",
-    icon: Play,
-    badge: "3",
-    badgeVariant: "purple" as const,
-  },
-  {
-    label: "Revisões",
-    href: "/revisoes",
-    icon: Eye,
-    badge: "4",
-    badgeVariant: "amber" as const,
-  },
-  {
-    label: "Posts publicados",
+    label: "Posts",
     href: "/posts",
     icon: FileText,
   },
 ];
 
-const navAgentes = [
+const navAgentes: NavItem[] = [
   {
     label: "Configurar agentes",
     href: "/agentes",
@@ -70,13 +63,6 @@ const navAgentes = [
     label: "Ferramentas",
     href: "/ferramentas",
     icon: Wrench,
-  },
-  {
-    label: "Prompts",
-    href: "/prompts",
-    icon: MessageSquare,
-    badge: "New",
-    badgeVariant: "new" as const,
   },
 ];
 
@@ -90,6 +76,11 @@ const navSistema = [
     label: "LangSmith traces",
     href: "/langsmith",
     icon: Activity,
+  },
+  {
+    label: "Estudo",
+    href: "/estudo",
+    icon: FlaskConical,
   },
 ];
 
