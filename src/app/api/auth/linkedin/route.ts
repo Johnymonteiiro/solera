@@ -14,7 +14,7 @@ export async function GET() {
     path: "/",
   });
 
-  const linkedin = resolveLinkedIn();
+  const linkedin = await resolveLinkedIn();
   const params = new URLSearchParams({
     response_type: "code",
     client_id: linkedin.clientId ?? "",

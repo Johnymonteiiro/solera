@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSettings, saveSettings } from "@/app/MAS/lib/settingsStore";
 import { NavigatorProvider } from "@/app/MAS/types/types";
+import { requireAdmin, requireArea } from "@/lib/dal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,11 +9,16 @@ export const dynamic = "force-dynamic";
 const PROVIDERS: NavigatorProvider[] = ["tavily", "brave"];
 
 export async function GET() {
+  const auth = await requireArea("ferramentas");
+  if (!auth.ok) return auth.response;
   const settings = await getSettings();
   return NextResponse.json({ tools: settings.tools });
 }
 
 export async function PUT(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
   let body: { search?: { provider?: NavigatorProvider; maxResults?: number } };
   try {
     body = await req.json();
@@ -29,6 +35,6 @@ export async function PUT(req: NextRequest) {
     search.maxResults = Math.min(20, Math.max(1, Math.round(body.search.maxResults)));
   }
 
-  await saveSettings({ ...current, tools: { search } });
+  await saveSettings({ ...current, tools: { search } }, auth.ownerId);
   return NextResponse.json({ tools: { search } });
 }

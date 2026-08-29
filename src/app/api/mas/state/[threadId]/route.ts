@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGraph } from "@/app/MAS/graph/graph";
 import { getThread } from "@/app/MAS/lib/threadStore";
+import { requireArea } from "@/lib/dal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,9 +10,21 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ threadId: string }> },
 ) {
-  const { threadId } = await params;
-  const graph = getGraph();
+  const auth = await requireArea("posts");
+  if (!auth.ok) return auth.response;
+  const ownerId = auth.ownerId;
 
+  const { threadId } = await params;
+
+  // A POSSE VEM PRIMEIRO, e é o banco que decide. O checkpoint do LangGraph não
+  // conhece dono: ler o snapshot antes entregaria draft, insights e
+  // researchResults de QUALQUER thread para quem soubesse o id.
+  const stored = await getThread(ownerId, threadId);
+  if (!stored) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  const graph = getGraph();
   const snapshot = await graph.getState({
     configurable: { thread_id: threadId },
   });
@@ -21,7 +34,6 @@ export async function GET(
   // Fallback: quando o checkpoint está vazio/perdido (ex: thread antigo após
   // restart), completa os artefatos com o que foi espelhado no threadStore.
   // Sem isso, insights/researchResults sumiam pois só viviam no checkpoint.
-  const stored = await getThread(threadId);
   const nonEmpty = <T>(v: T[] | undefined): T[] | undefined =>
     v && v.length > 0 ? v : undefined;
 

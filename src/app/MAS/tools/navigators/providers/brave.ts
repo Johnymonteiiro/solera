@@ -18,7 +18,7 @@ export async function searchBrave(options: NavigatorOptions): Promise<ResearchRe
   });
 
   const braveUrl =
-    resolveApiKey("BRAVE_URL") ?? "https://api.search.brave.com/res/v1/web/search?";
+    (await resolveApiKey("BRAVE_URL")) ?? "https://api.search.brave.com/res/v1/web/search?";
   const response = await fetch(
     `${braveUrl}${params}`,
     {

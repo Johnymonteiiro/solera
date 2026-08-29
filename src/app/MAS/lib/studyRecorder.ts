@@ -13,6 +13,18 @@ import { AgentStatus, JudgeResult, JudgeRunMeta } from "../types/types";
 // Também é o que conserta o furo original: o writer grava CADA draft e o judge
 // grava a nota ATRELADA àquela versão, em vez de tudo chegar só no evento
 // terminal `awaiting_review` (hitl.node.ts) com o estado final.
+//
+// ─── Fronteira de isolamento por dono ───────────────────────────────────────
+// As LEITURAS deste arquivo levam `ownerId` como primeiro parâmetro obrigatório
+// e filtram por `runs.owner_id` (as tabelas do estudo não têm dono próprio: o
+// escopo sai por join em runs, a fonte única de propriedade).
+//
+// Os ESCRITORES — `updateRunProgress`, `recordDraftVersion`, `recordJudgement` —
+// ficam de fora, de propósito. São chamados de dentro dos nós do grafo, onde não
+// existe request context; levar sessão até lá significaria arrastar `ownerId`
+// pelo states.ts inteiro. Todos são inalcançáveis sem passar antes por
+// /api/mas/run ou /api/mas/review, que checam posse. Se um dia um nó virar
+// alcançável por outra entrada, esta fronteira é o que precisa ser revisto.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type DraftTrigger = "initial" | "judge_retry" | "human_revision";
@@ -238,14 +250,18 @@ function toVersionRecord(
   };
 }
 
-/** Histórico completo de um run, em ordem de versão. */
-export async function getVersionHistory(threadId: string): Promise<VersionRecord[]> {
+/** Histórico completo de um run do dono, em ordem de versão. */
+export async function getVersionHistory(
+  ownerId: string,
+  threadId: string,
+): Promise<VersionRecord[]> {
   if (!isDbConfigured()) return [];
   const rows = await getDb()
     .select({ version: draftVersions, judgement: judgements })
     .from(draftVersions)
+    .innerJoin(runs, eq(runs.threadId, draftVersions.threadId))
     .leftJoin(judgements, eq(judgements.draftVersionId, draftVersions.id))
-    .where(eq(draftVersions.threadId, threadId))
+    .where(and(eq(draftVersions.threadId, threadId), eq(runs.ownerId, ownerId)))
     .orderBy(draftVersions.version);
   return rows.map((r) => toVersionRecord(r.version, r.judgement));
 }
@@ -255,13 +271,17 @@ export async function getVersionHistory(threadId: string): Promise<VersionRecord
  * uma amostra de dezenas de execuções, um getVersionHistory por run seria N+1
  * contra o pooler do Supabase a cada abertura da /estudo.
  */
-export async function getAllVersionHistories(): Promise<Map<string, VersionRecord[]>> {
+export async function getAllVersionHistories(
+  ownerId: string,
+): Promise<Map<string, VersionRecord[]>> {
   const byThread = new Map<string, VersionRecord[]>();
   if (!isDbConfigured()) return byThread;
   const rows = await getDb()
     .select({ version: draftVersions, judgement: judgements })
     .from(draftVersions)
+    .innerJoin(runs, eq(runs.threadId, draftVersions.threadId))
     .leftJoin(judgements, eq(judgements.draftVersionId, draftVersions.id))
+    .where(eq(runs.ownerId, ownerId))
     .orderBy(draftVersions.threadId, draftVersions.version);
 
   for (const r of rows) {
@@ -281,21 +301,26 @@ export async function getAllVersionHistories(): Promise<Map<string, VersionRecor
  * misturaria N críticas diferentes num delta só.
  */
 export async function getRevisionPairs(
+  ownerId: string,
   threadId: string,
 ): Promise<{ before: VersionRecord; after: VersionRecord }[]> {
-  const versions = await getVersionHistory(threadId);
+  const versions = await getVersionHistory(ownerId, threadId);
   return versions
     .slice(0, -1)
     .map((before, i) => ({ before, after: versions[i + 1] }));
 }
 
 /** Contagem de versões por run — usada pelos exports e pela página /estudo. */
-export async function countVersions(threadId: string): Promise<number> {
+export async function countVersions(
+  ownerId: string,
+  threadId: string,
+): Promise<number> {
   if (!isDbConfigured()) return 0;
   const [row] = await getDb()
     .select({ n: sql<number>`count(*)::int` })
     .from(draftVersions)
-    .where(eq(draftVersions.threadId, threadId));
+    .innerJoin(runs, eq(runs.threadId, draftVersions.threadId))
+    .where(and(eq(draftVersions.threadId, threadId), eq(runs.ownerId, ownerId)));
   return row?.n ?? 0;
 }
 
@@ -315,7 +340,7 @@ export interface RunMetaRecord {
   excludedReason: string | null;
 }
 
-export async function listRunMeta(): Promise<RunMetaRecord[]> {
+export async function listRunMeta(ownerId: string): Promise<RunMetaRecord[]> {
   if (!isDbConfigured()) return [];
   const rows = await getDb()
     .select({
@@ -332,6 +357,7 @@ export async function listRunMeta(): Promise<RunMetaRecord[]> {
       excludedReason: runs.excludedReason,
     })
     .from(runs)
+    .where(eq(runs.ownerId, ownerId))
     .orderBy(desc(runs.createdAt));
 
   return rows.map((r) => ({
@@ -352,6 +378,7 @@ export async function listRunMeta(): Promise<RunMetaRecord[]> {
  * cascateia e é irreversível.
  */
 export async function setRunExcluded(
+  ownerId: string,
   threadId: string,
   reason: string | null,
 ): Promise<boolean> {
@@ -362,7 +389,7 @@ export async function setRunExcluded(
         ? { excludedAt: null, excludedReason: null }
         : { excludedAt: new Date(), excludedReason: reason },
     )
-    .where(eq(runs.threadId, threadId))
+    .where(and(eq(runs.threadId, threadId), eq(runs.ownerId, ownerId)))
     .returning({ threadId: runs.threadId });
   return updated.length > 0;
 }

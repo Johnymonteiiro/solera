@@ -1,11 +1,13 @@
 import { getRevisionSelection } from "../src/app/MAS/lib/revisionPairs";
 import { countVersions, getRevisionPairs } from "../src/app/MAS/lib/studyRecorder";
+import { ownerFromEnv } from "./owner";
 
 // Confere a seleção de pares antes/depois contra o banco real.
 //   pnpm test:pairs
 
 async function main() {
-  const { pairs, runs, stats } = await getRevisionSelection();
+  const ownerId = ownerFromEnv();
+  const { pairs, runs, stats } = await getRevisionSelection(ownerId);
 
   console.log("── stats ──");
   for (const [k, v] of Object.entries(stats)) console.log(`  ${k}: ${v}`);
@@ -64,8 +66,8 @@ rótulos órfãos (versão fora da amostra): ${orfaos}` +
   const sample = runs.find((r) => r.versions > 1) ?? runs[0];
   if (sample) {
     const [n, single] = await Promise.all([
-      countVersions(sample.threadId),
-      getRevisionPairs(sample.threadId),
+      countVersions(ownerId, sample.threadId),
+      getRevisionPairs(ownerId, sample.threadId),
     ]);
     const naSelecao = pairs.filter((p) => p.threadId === sample.threadId).length;
     console.log(

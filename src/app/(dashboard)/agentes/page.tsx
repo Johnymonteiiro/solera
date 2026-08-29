@@ -1,7 +1,10 @@
 import { AgentesView } from "@/components/dashboard/agentes-view";
 import { Topbar } from "@/components/dashboard/topbar";
+import { requireAreaPage } from "@/lib/dal";
 
-export default function Page() {
+export default async function Page() {
+  await requireAreaPage("agentes");
+
   return (
     <>
       <Topbar title="Configurar agentes" subtitle="papéis, prompts e on/off" />

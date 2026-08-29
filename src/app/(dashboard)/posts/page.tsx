@@ -4,10 +4,13 @@ import { Topbar } from "@/components/dashboard/topbar";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { requireAreaPage } from "@/lib/dal";
 
 export const dynamic = "force-dynamic";
 
-export default function Page() {
+export default async function Page() {
+  await requireAreaPage("posts");
+
   return (
     <>
       <Topbar

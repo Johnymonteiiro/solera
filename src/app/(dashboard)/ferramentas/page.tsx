@@ -1,7 +1,10 @@
 import { FerramentasView } from "@/components/dashboard/ferramentas-view";
 import { Topbar } from "@/components/dashboard/topbar";
+import { requireAreaPage } from "@/lib/dal";
 
-export default function Page() {
+export default async function Page() {
+  await requireAreaPage("ferramentas");
+
   return (
     <>
       <Topbar title="Ferramentas" subtitle="tools dos agentes" />

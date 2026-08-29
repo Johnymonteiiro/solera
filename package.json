@@ -11,6 +11,8 @@
     "db:migrate-json": "dotenv -e .env.local -- tsx scripts/migrate-threads-to-db.ts",
     "db:apply": "dotenv -e .env.local -- tsx scripts/apply-sql.ts",
     "db:check": "dotenv -e .env.local -- tsx scripts/check-db.ts",
+    "db:backfill-owner": "dotenv -e .env.local -- tsx scripts/backfill-owner.ts",
+    "db:import-config": "dotenv -e .env.local -- tsx scripts/import-config.ts",
     "test:pairs": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/test-revision-pairs.ts",
     "test:sample-rule": "tsx --tsconfig tsconfig.json scripts/test-sample-rule.ts",
     "study:exclude": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/study-exclude.ts"
@@ -36,6 +38,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "3.8.0",
+    "server-only": "^0.0.1",
     "shadcn": "^4.1.2",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",

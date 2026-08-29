@@ -5,15 +5,25 @@ import {
   getAgentConfig,
   saveAgentConfig,
 } from "@/app/MAS/lib/configStore";
+import { requireAdmin, requireArea } from "@/lib/dal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  // Ler a config dos agentes é a área `agentes`; GRAVAR continua sendo admin.
+  const auth = await requireArea("agentes");
+  if (!auth.ok) return auth.response;
   return NextResponse.json({ agents: await getAgentConfig() });
 }
 
+// Admin-only, e esta é a mais sensível das quatro: `promptOverride` troca o
+// prompt do Judge em RUNTIME, não é versionado, e já corrompeu todas as notas
+// uma vez. Um segundo usuário mexendo aqui invalida o estudo em silêncio.
 export async function PUT(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
   let body: { agents?: AgentConfigMap };
   try {
     body = await req.json();
@@ -42,6 +52,9 @@ export async function PUT(req: NextRequest) {
           : current[id].promptOverride,
     };
   }
-  await saveAgentConfig(current);
+  // `updatedBy` não é enfeite: o promptOverride muda o prompt do Judge em
+  // runtime e já corrompeu todas as notas uma vez. Quando uma nota sair
+  // estranha, "quem mexeu e quando" tem que ter resposta.
+  await saveAgentConfig(current, auth.ownerId);
   return NextResponse.json({ agents: current });
 }
