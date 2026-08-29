@@ -1,10 +1,22 @@
-import fs from "node:fs";
-import fsp from "node:fs/promises";
-import path from "node:path";
+import { eq, inArray } from "drizzle-orm";
+import { appSettings, getDb, isDbConfigured } from "@/db";
 import { NavigatorProvider } from "../types/types";
 
-// Config persistida em data/settings.json — sobrepõe o .env quando preenchida.
-// ⚠ Segredos em texto no disco: garantir data/ no .gitignore.
+// ─────────────────────────────────────────────────────────────────────────────
+// Config do workspace, agora no Postgres (`app_settings`) — antes era
+// data/settings.json. Ver drizzle/0006_config.sql para o porquê.
+//
+// O .env continua sendo FALLBACK, não substituto: valor gravado aqui sobrepõe,
+// campo vazio cai no `process.env`. É o que mantém o dev funcionando sem banco
+// e o que a UI mostra como "usando .env".
+//
+// TUDO É ASSÍNCRONO. Os resolvers eram síncronos quando liam arquivo com
+// readFileSync; virar cache em memória para preservar a assinatura seria pior
+// que o ruído do `await`: a primeira chamada de um processo frio serviria a
+// chave do .env em vez da do banco, e o `judgeMeta.model` do dataset registraria
+// um modelo que não foi o usado. Config silenciosamente errada já custou as
+// notas do Judge uma vez.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type ApiKeyName =
   | "OPENAI_API_KEY"
@@ -12,6 +24,31 @@ export type ApiKeyName =
   | "TAVILY_API_KEY"
   | "BRAVE_API_KEY"
   | "BRAVE_URL";
+
+/** Chaves cujo valor NUNCA volta num GET — só presença e últimos 4 dígitos. */
+export const SECRET_KEYS: string[] = [
+  "OPENAI_API_KEY",
+  "TAVILY_API_KEY",
+  "BRAVE_API_KEY",
+  "LINKEDIN_CLIENT_SECRET",
+];
+
+export function isSecretKey(key: string): boolean {
+  return SECRET_KEYS.includes(key);
+}
+
+// Nomes das chaves na tabela. Estilo .env de propósito: é o mesmo vocabulário
+// que a pessoa vê no .env.local e na aba Variáveis, então não há tradução mental
+// entre os dois lugares.
+export const LINKEDIN_KEYS = {
+  clientId: "LINKEDIN_CLIENT_ID",
+  clientSecret: "LINKEDIN_CLIENT_SECRET",
+  redirectUri: "LINKEDIN_REDIRECT_URI",
+} as const;
+
+export const SEARCH_PROVIDER_KEY = "SEARCH_PROVIDER";
+export const SEARCH_MAX_RESULTS_KEY = "SEARCH_MAX_RESULTS";
+export const STUDY_FORM_URL_KEY = "STUDY_FORM_URL";
 
 export interface Settings {
   apiKeys: Partial<Record<ApiKeyName, string>>;
@@ -23,11 +60,16 @@ export interface Settings {
   tools: {
     search: { provider: NavigatorProvider; maxResults: number };
   };
-  // Estudo Agent-as-judge: link do Google Form de avaliação humana.
   study: { formUrl?: string };
 }
 
-const STORE_PATH = path.join(process.cwd(), "data", "settings.json");
+const API_KEY_NAMES: ApiKeyName[] = [
+  "OPENAI_API_KEY",
+  "LLM_MODEL",
+  "TAVILY_API_KEY",
+  "BRAVE_API_KEY",
+  "BRAVE_URL",
+];
 
 function defaults(): Settings {
   return {
@@ -38,59 +80,141 @@ function defaults(): Settings {
   };
 }
 
-function merge(parsed: unknown): Settings {
-  const base = defaults();
-  if (!parsed || typeof parsed !== "object") return base;
-  const p = parsed as Partial<Settings>;
-  return {
-    apiKeys: { ...base.apiKeys, ...(p.apiKeys ?? {}) },
-    linkedin: { ...base.linkedin, ...(p.linkedin ?? {}) },
-    tools: {
-      search: { ...base.tools.search, ...(p.tools?.search ?? {}) },
-    },
-    study: { ...base.study, ...(p.study ?? {}) },
-  };
+// ─── Acesso cru à tabela ─────────────────────────────────────────────────────
+
+/** Todas as linhas como um Map. Uma query — os call sites leem várias chaves. */
+export async function readAll(): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (!isDbConfigured()) return map;
+  const rows = await getDb()
+    .select({ key: appSettings.key, value: appSettings.value })
+    .from(appSettings);
+  for (const r of rows) if (r.value.trim()) map.set(r.key, r.value);
+  return map;
 }
 
-// Leitura síncrona — usada pelos resolvers em call sites que não são async.
-function readSync(): Settings {
-  try {
-    return merge(JSON.parse(fs.readFileSync(STORE_PATH, "utf8")));
-  } catch {
-    return defaults();
+/** Uma chave só. Devolve undefined quando vazia — quem chama cai no .env. */
+export async function readKey(key: string): Promise<string | undefined> {
+  if (!isDbConfigured()) return undefined;
+  const [row] = await getDb()
+    .select({ value: appSettings.value })
+    .from(appSettings)
+    .where(eq(appSettings.key, key))
+    .limit(1);
+  const v = row?.value?.trim();
+  return v ? v : undefined;
+}
+
+/**
+ * Grava um lote. Valor vazio APAGA a linha (= voltar a usar o .env), em vez de
+ * gravar string vazia — assim "sem override" tem uma representação só.
+ */
+export async function writeKeys(
+  entries: Record<string, string>,
+  updatedBy: string | null,
+): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  const apagar: string[] = [];
+  const gravar: (typeof appSettings.$inferInsert)[] = [];
+
+  for (const [key, raw] of Object.entries(entries)) {
+    const value = typeof raw === "string" ? raw.trim() : "";
+    if (!value) {
+      apagar.push(key);
+      continue;
+    }
+    gravar.push({
+      key,
+      value,
+      isSecret: isSecretKey(key),
+      updatedAt: now,
+      updatedBy,
+    });
+  }
+
+  if (apagar.length) {
+    await db.delete(appSettings).where(inArray(appSettings.key, apagar));
+  }
+  for (const row of gravar) {
+    await db
+      .insert(appSettings)
+      .values(row)
+      .onConflictDoUpdate({
+        target: appSettings.key,
+        set: {
+          value: row.value,
+          isSecret: row.isSecret,
+          updatedAt: now,
+          updatedBy,
+        },
+      });
   }
 }
+
+// ─── Forma antiga (Settings), mantida para as rotas existentes ───────────────
 
 export async function getSettings(): Promise<Settings> {
-  try {
-    return merge(JSON.parse(await fsp.readFile(STORE_PATH, "utf8")));
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return defaults();
-    throw err;
+  const map = await readAll();
+  const s = defaults();
+
+  for (const k of API_KEY_NAMES) {
+    const v = map.get(k);
+    if (v) s.apiKeys[k] = v;
   }
+  for (const [campo, key] of Object.entries(LINKEDIN_KEYS)) {
+    const v = map.get(key);
+    if (v) s.linkedin[campo as keyof Settings["linkedin"]] = v;
+  }
+
+  const provider = map.get(SEARCH_PROVIDER_KEY);
+  if (provider === "tavily" || provider === "brave") {
+    s.tools.search.provider = provider;
+  }
+  const max = Number(map.get(SEARCH_MAX_RESULTS_KEY));
+  if (Number.isFinite(max) && max > 0) s.tools.search.maxResults = max;
+
+  const form = map.get(STUDY_FORM_URL_KEY);
+  if (form) s.study.formUrl = form;
+
+  return s;
 }
 
-export async function saveSettings(next: Settings): Promise<void> {
-  await fsp.mkdir(path.dirname(STORE_PATH), { recursive: true });
-  await fsp.writeFile(STORE_PATH, JSON.stringify(merge(next), null, 2), "utf8");
+export async function saveSettings(
+  next: Settings,
+  updatedBy: string | null = null,
+): Promise<void> {
+  const entries: Record<string, string> = {};
+  for (const k of API_KEY_NAMES) entries[k] = next.apiKeys[k] ?? "";
+  for (const [campo, key] of Object.entries(LINKEDIN_KEYS)) {
+    entries[key] = next.linkedin[campo as keyof Settings["linkedin"]] ?? "";
+  }
+  entries[SEARCH_PROVIDER_KEY] = next.tools.search.provider;
+  entries[SEARCH_MAX_RESULTS_KEY] = String(next.tools.search.maxResults);
+  entries[STUDY_FORM_URL_KEY] = next.study.formUrl ?? "";
+  await writeKeys(entries, updatedBy);
 }
 
-// ─── Resolvers (settings.json → fallback .env) ────────────────────────────────
-export function resolveApiKey(name: ApiKeyName): string | undefined {
-  const v = readSync().apiKeys[name];
-  return v && v.trim() ? v.trim() : process.env[name];
+// ─── Resolvers (app_settings → fallback .env) ────────────────────────────────
+
+export async function resolveApiKey(
+  name: ApiKeyName,
+): Promise<string | undefined> {
+  return (await readKey(name)) ?? process.env[name];
 }
 
-export function resolveLinkedIn(): {
+export async function resolveLinkedIn(): Promise<{
   clientId?: string;
   clientSecret?: string;
   redirectUri?: string;
-} {
-  const s = readSync().linkedin;
+}> {
+  const map = await readAll();
   return {
-    clientId: s.clientId?.trim() || process.env.LINKEDIN_CLIENT_ID,
-    clientSecret: s.clientSecret?.trim() || process.env.LINKEDIN_CLIENT_SECRET,
-    redirectUri: s.redirectUri?.trim() || process.env.LINKEDIN_REDIRECT_URI,
+    clientId: map.get(LINKEDIN_KEYS.clientId) ?? process.env.LINKEDIN_CLIENT_ID,
+    clientSecret:
+      map.get(LINKEDIN_KEYS.clientSecret) ?? process.env.LINKEDIN_CLIENT_SECRET,
+    redirectUri:
+      map.get(LINKEDIN_KEYS.redirectUri) ?? process.env.LINKEDIN_REDIRECT_URI,
   };
 }
 
@@ -98,10 +222,15 @@ export async function getSearchToolConfig(): Promise<{
   provider: NavigatorProvider;
   maxResults: number;
 }> {
-  const s = await getSettings();
-  const provider =
-    s.tools.search.provider ||
-    (process.env.DEFAULT_NAVIGATOR as NavigatorProvider) ||
-    "tavily";
-  return { provider, maxResults: s.tools.search.maxResults || 10 };
+  const map = await readAll();
+  const stored = map.get(SEARCH_PROVIDER_KEY);
+  const provider: NavigatorProvider =
+    stored === "tavily" || stored === "brave"
+      ? stored
+      : ((process.env.DEFAULT_NAVIGATOR as NavigatorProvider) || "tavily");
+  const max = Number(map.get(SEARCH_MAX_RESULTS_KEY));
+  return {
+    provider,
+    maxResults: Number.isFinite(max) && max > 0 ? max : 10,
+  };
 }

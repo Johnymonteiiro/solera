@@ -6,6 +6,7 @@ import {
   getRevisionSelection,
 } from "@/app/MAS/lib/revisionPairs";
 import { countVersions, getRevisionPairs } from "@/app/MAS/lib/studyRecorder";
+import { requireArea } from "@/lib/dal";
 import { sheetResponse } from "@/lib/sheet";
 
 export const runtime = "nodejs";
@@ -215,6 +216,11 @@ function versionRow(
 }
 
 export async function GET(req: NextRequest) {
+  // Área `estudo` na matriz (padrão: colaborador para cima).
+  const auth = await requireArea("estudo");
+  if (!auth.ok) return auth.response;
+  const ownerId = auth.ownerId;
+
   const params = req.nextUrl.searchParams;
   const format = params.get("format");
   const threadId = params.get("threadId");
@@ -223,13 +229,13 @@ export async function GET(req: NextRequest) {
   // diagnóstico, não amostra do form).
   if (threadId) {
     const [versions, pairs] = await Promise.all([
-      countVersions(threadId),
-      getRevisionPairs(threadId),
+      countVersions(ownerId, threadId),
+      getRevisionPairs(ownerId, threadId),
     ]);
     return NextResponse.json({ threadId, versions, pairs });
   }
 
-  const { pairs, runs, stats } = await getRevisionSelection();
+  const { pairs, runs, stats } = await getRevisionSelection(ownerId);
   // Os formatos voltados ao form humano usam a AMOSTRA (1 par por execução, 1
   // por tópico, até o teto de posts), não todos os pares válidos: rotular o
   // dataset inteiro daria letras a textos que ninguém vai avaliar.

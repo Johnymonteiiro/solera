@@ -48,7 +48,7 @@ export async function analystNode(
   }
 
   const cfg = await getAgentConfig();
-  const analystAgent = makeAnalystAgent(cfg.analyst.role, cfg.analyst.promptOverride);
+  const analystAgent = await makeAnalystAgent(cfg.analyst.role, cfg.analyst.promptOverride);
   const payload = formatPayloadForAnalyst(state.topic, state.researchResults);
   const result = await analystAgent.invoke({
     messages: [{ role: "user", content: payload }],

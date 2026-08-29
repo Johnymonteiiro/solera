@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStudySelection, StudySample } from "@/app/MAS/lib/studySample";
+import { requireArea } from "@/lib/dal";
 import { sheetResponse } from "@/lib/sheet";
 
 export const runtime = "nodejs";
@@ -84,8 +85,12 @@ function metricsRow(s: StudySample) {
 }
 
 export async function GET(req: NextRequest) {
+  // Área `estudo` na matriz (padrão: colaborador para cima).
+  const auth = await requireArea("estudo");
+  if (!auth.ok) return auth.response;
+
   const format = req.nextUrl.searchParams.get("format");
-  const { samples, excluded, topics } = await getStudySelection();
+  const { samples, excluded, topics } = await getStudySelection(auth.ownerId);
 
   if (format === "posts") {
     // Texto pronto pra colar no Google Form — condição oculta, só o rótulo.

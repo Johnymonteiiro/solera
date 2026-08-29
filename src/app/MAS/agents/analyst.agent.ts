@@ -5,11 +5,9 @@ import { ANALYST_PROMPT } from "../prompts/analyst.prompt";
 
 // Factory: injeta papel + override da config (/agentes). Override substitui o
 // prompt base; role vira preâmbulo. Vazios → usa o prompt do código.
-export function makeAnalystAgent(role = "", promptOverride = "") {
+export async function makeAnalystAgent(role = "", promptOverride = "") {
   return createAgent({
-    model: getBaseLlm(),
+    model: await getBaseLlm(),
     systemPrompt: composeSystemPrompt(role, promptOverride, ANALYST_PROMPT),
   });
 }
-
-export const analystAgent = makeAnalystAgent();

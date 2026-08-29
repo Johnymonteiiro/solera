@@ -1,9 +1,14 @@
-import { desc, eq } from "drizzle-orm";
-import { getDb, publishedPosts } from "@/db";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { getDb, publishedPosts, runs } from "@/db";
 import { PostSize, PublishedPost, SearchLanguage } from "../types/types";
 
 // Posts publicados no LinkedIn. Substitui data/published-posts.json.
 // Um post por thread (thread_id é PK), com cascade a partir de runs.
+//
+// A tabela NÃO tem coluna de dono: `runs` é a fonte única de propriedade, e o
+// escopo sai por innerJoin nela. Duplicar owner_id aqui daria um segundo lugar
+// para a verdade divergir. `savePublishedPost` é o escritor e fica sem ownerId —
+// roda dentro do publisher.node, já do outro lado da checagem.
 
 function toPost(row: typeof publishedPosts.$inferSelect): PublishedPost {
   return {
@@ -41,31 +46,55 @@ export async function savePublishedPost(post: PublishedPost): Promise<void> {
     });
 }
 
-export async function listPublishedPosts(): Promise<PublishedPost[]> {
+export async function listPublishedPosts(
+  ownerId: string,
+): Promise<PublishedPost[]> {
   const rows = await getDb()
-    .select()
+    .select({ post: publishedPosts })
     .from(publishedPosts)
+    .innerJoin(runs, eq(runs.threadId, publishedPosts.threadId))
+    .where(eq(runs.ownerId, ownerId))
     .orderBy(desc(publishedPosts.publishedAt));
-  return rows.map(toPost);
+  return rows.map((r) => toPost(r.post));
 }
 
-// Retorna o post publicado de um thread (ou null se não foi publicado).
+// Retorna o post publicado de um thread do dono (ou null).
 export async function getPublishedPost(
+  ownerId: string,
   threadId: string,
 ): Promise<PublishedPost | null> {
   const [row] = await getDb()
-    .select()
+    .select({ post: publishedPosts })
     .from(publishedPosts)
-    .where(eq(publishedPosts.threadId, threadId))
+    .innerJoin(runs, eq(runs.threadId, publishedPosts.threadId))
+    .where(and(eq(publishedPosts.threadId, threadId), eq(runs.ownerId, ownerId)))
     .limit(1);
-  return row ? toPost(row) : null;
+  return row ? toPost(row.post) : null;
 }
 
-// Remove o registro publicado de um thread. Retorna true se removeu algo.
-export async function deletePublishedPost(threadId: string): Promise<boolean> {
-  const deleted = await getDb()
+// Remove o registro publicado de um thread do dono. Retorna true se removeu algo.
+// (Não despublica do LinkedIn — só apaga o registro local.)
+export async function deletePublishedPost(
+  ownerId: string,
+  threadId: string,
+): Promise<boolean> {
+  // DELETE não aceita join, então a posse entra como subquery em runs — mesma
+  // regra do innerJoin das leituras, escrita da forma que o DELETE permite.
+  const db = getDb();
+  const deleted = await db
     .delete(publishedPosts)
-    .where(eq(publishedPosts.threadId, threadId))
+    .where(
+      and(
+        eq(publishedPosts.threadId, threadId),
+        inArray(
+          publishedPosts.threadId,
+          db
+            .select({ threadId: runs.threadId })
+            .from(runs)
+            .where(and(eq(runs.threadId, threadId), eq(runs.ownerId, ownerId))),
+        ),
+      ),
+    )
     .returning({ threadId: publishedPosts.threadId });
   return deleted.length > 0;
 }

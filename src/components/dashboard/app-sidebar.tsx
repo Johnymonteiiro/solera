@@ -9,11 +9,14 @@ import {
   HelpCircle,
   LayoutDashboard,
   Settings,
+  Users,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+import { type Area } from "@/lib/roles";
 
 type NavItem = {
   label: string;
@@ -21,6 +24,11 @@ type NavItem = {
   icon: LucideIcon;
   badge?: string;
   badgeVariant?: "purple" | "amber" | "new";
+  /**
+   * Área da matriz de acesso. Ausente = link sempre visível (Ajuda).
+   * Esconder link NÃO é permissão: cada página chama requireAreaPage.
+   */
+  area?: Area;
 };
 
 import {
@@ -44,12 +52,20 @@ const navPrincipal: NavItem[] = [
   {
     label: "Dashboard",
     href: "/dashboard",
+    area: "dashboard",
     icon: LayoutDashboard,
   },
   {
     label: "Posts",
     href: "/posts",
+    area: "posts",
     icon: FileText,
+  },
+  {
+    label: "Usuários",
+    href: "/usuarios",
+    area: "users",
+    icon: Users,
   },
 ];
 
@@ -57,37 +73,43 @@ const navAgentes: NavItem[] = [
   {
     label: "Configurar agentes",
     href: "/agentes",
+    area: "agentes",
     icon: Bot,
   },
   {
     label: "Ferramentas",
     href: "/ferramentas",
+    area: "ferramentas",
     icon: Wrench,
   },
 ];
 
-const navSistema = [
+const navSistema: NavItem[] = [
   {
     label: "Analytics",
     href: "/analytics",
+    area: "analytics",
     icon: BarChart3,
   },
   {
     label: "LangSmith traces",
     href: "/langsmith",
+    area: "traces",
     icon: Activity,
   },
   {
     label: "Estudo",
     href: "/estudo",
+    area: "estudo",
     icon: FlaskConical,
   },
 ];
 
-const navBottom = [
+const navBottom: NavItem[] = [
   {
     label: "Configurações",
     href: "/configuracoes",
+    area: "config",
     icon: Settings,
   },
   {
@@ -105,8 +127,11 @@ const badgeStyles = {
   new: "bg-[var(--accent-green-dim)] text-[var(--accent-green)] text-[9px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide",
 };
 
-export function AppSidebar() {
+export function AppSidebar({ areas }: { areas: Area[] }) {
   const pathname = usePathname();
+  const permitidas = new Set(areas);
+  const visivel = (items: NavItem[]) =>
+    items.filter((i) => !i.area || permitidas.has(i.area));
 
   return (
     <Sidebar collapsible="icon">
@@ -139,7 +164,7 @@ export function AppSidebar() {
             Principal
           </SidebarGroupLabel>
           <SidebarMenu>
-            {navPrincipal.map((item) => (
+            {visivel(navPrincipal).map((item) => (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
@@ -168,7 +193,7 @@ export function AppSidebar() {
             Agentes
           </SidebarGroupLabel>
           <SidebarMenu>
-            {navAgentes.map((item) => (
+            {visivel(navAgentes).map((item) => (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
@@ -197,7 +222,7 @@ export function AppSidebar() {
             Sistema
           </SidebarGroupLabel>
           <SidebarMenu>
-            {navSistema.map((item) => (
+            {visivel(navSistema).map((item) => (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
@@ -217,7 +242,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-[var(--border-subtle)] py-3">
         <SidebarMenu>
-          {navBottom.map((item) => (
+          {visivel(navBottom).map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton
                 asChild

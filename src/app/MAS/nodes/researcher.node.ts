@@ -20,7 +20,7 @@ export async function researcherNode(
   }
 
   const cfg = await getAgentConfig();
-  const researcherAgent = makeResearcherAgent(
+  const researcherAgent = await makeResearcherAgent(
     cfg.researcher.role,
     cfg.researcher.promptOverride,
   );

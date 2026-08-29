@@ -4,6 +4,7 @@ import { flushCheckpointer } from "@/app/MAS/lib/checkpointer";
 import { AGENT_IDS, getAgentConfig } from "@/app/MAS/lib/configStore";
 import { createThread, emitEvent } from "@/app/MAS/lib/threadStore";
 import { NavigatorProvider, PostSize, SearchLanguage } from "@/app/MAS/types/types";
+import { requireArea } from "@/lib/dal";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 
@@ -23,6 +24,11 @@ interface RunBody {
 }
 
 export async function POST(req: NextRequest) {
+  // Antes de qualquer coisa: um run queima crédito de LLM do dono da chave.
+  const auth = await requireArea("posts");
+  if (!auth.ok) return auth.response;
+  const ownerId = auth.ownerId;
+
   let body: RunBody;
   try {
     body = (await req.json()) as RunBody;
@@ -65,7 +71,12 @@ export async function POST(req: NextRequest) {
   const threadId = `thread_${crypto.randomBytes(4).toString("hex")}`;
   // Awaited de propósito: draft_versions referencia runs.thread_id, então a
   // linha do run tem que existir antes de o writer gravar a v1.
-  await createThread(threadId, topic, postSize, judgeLoop);
+  const created = await createThread(ownerId, threadId, topic, postSize, judgeLoop);
+  if (!created) {
+    // threadId é aleatório, então isto é colisão praticamente impossível — mas
+    // seguir em frente penduraria as versões deste run na linha de outro dono.
+    return NextResponse.json({ error: "thread_conflict" }, { status: 409 });
+  }
   const graph = getGraph();
 
   // fire-and-forget: inicia o grafo em background e emite eventos via threadStore

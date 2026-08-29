@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { draftVersions, getDb, judgements, runs } from "@/db";
 import { AgentStatus, JudgeResult, JudgeRunMeta, PostSize, ResearchResult, StatusEvent } from "../types/types";
 import { toJudgeMeta, toJudgeResult } from "./studyRecorder";
@@ -15,6 +15,11 @@ import { normalizeTopic } from "./topic";
 // `draft`, `judgement` e `judgeMeta` do ThreadSummary são **derivados** da
 // última draftVersion, não colunas próprias. Era exatamente a duplicação de
 // "um slot por campo" que apagava o v1 a cada reescrita do writer.
+//
+// ISOLAMENTO POR DONO: `ownerId` é o PRIMEIRO parâmetro, obrigatório, de toda
+// leitura e de todo delete daqui. Não é estilo — é o que faz o compilador cobrar
+// o escopo: um call site que eu esquecer não compila. `emitEvent` é a exceção
+// deliberada (ver comentário nela).
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface LiveThread {
@@ -75,17 +80,23 @@ function fireAndForget(p: Promise<unknown>, what: string): void {
 
 // Registra um thread com metadados iniciais. Deve ser chamado pelo /api/mas/run
 // antes do primeiro emitEvent, para que a lista de execuções tenha topic + createdAt.
+//
+// Retorna false quando o threadId já existe e pertence a OUTRO usuário — a
+// alternativa (seguir em frente) faria o writer gravar draft_versions penduradas
+// no run alheio. O chamador tem que tratar; por isso não é `void`.
 export async function createThread(
+  ownerId: string,
   threadId: string,
   topic: string,
   postSize: PostSize = "small",
   judgeLoop: boolean = true,
-): Promise<void> {
+): Promise<boolean> {
   getLive(threadId);
-  await getDb()
+  const [row] = await getDb()
     .insert(runs)
     .values({
       threadId,
+      ownerId,
       topic,
       topicNorm: normalizeTopic(topic),
       postSize,
@@ -95,13 +106,24 @@ export async function createThread(
     })
     .onConflictDoUpdate({
       target: runs.threadId,
+      // `ownerId` fica fora do set de propósito: dono não se reatribui por
+      // reexecução. E o setWhere impede que um threadId adivinhado reescreva o
+      // topic de outro — sem ele, o conflito atualizaria a linha alheia.
       set: { topic, topicNorm: normalizeTopic(topic), postSize, judgeLoop },
-    });
+      setWhere: eq(runs.ownerId, ownerId),
+    })
+    .returning({ threadId: runs.threadId });
+  return row != null;
 }
 
 // Emite um evento para um thread — salva no histórico e notifica subscribers.
 // Síncrona de propósito: os nós do grafo chamam sem await, e o SSE precisa da
 // entrega imediata. A gravação do status vai em background.
+//
+// SEM ownerId, de propósito: é chamada de dentro dos nós do grafo, onde não
+// existe request context — arrastar a sessão até aqui significaria carregá-la
+// pelo states.ts inteiro. Só é alcançável depois de /api/mas/run ou
+// /api/mas/review, que já checaram posse. A fronteira é essa.
 export function emitEvent(threadId: string, event: StatusEvent): void {
   const t = getLive(threadId);
   t.events.push(event);
@@ -135,6 +157,10 @@ export function emitEvent(threadId: string, event: StatusEvent): void {
 
 // Subscreve a eventos de um thread (entrega histórico imediatamente + futuros)
 // Retorna função de unsubscribe
+//
+// Lê do Map em memória, não do banco, então escopar os stores NÃO protege esta
+// função: quem chama (/api/mas/stream) tem que confirmar a posse ANTES, senão dá
+// para assistir a execução alheia ao vivo.
 export function subscribeToThread(
   threadId: string,
   onEvent: (event: StatusEvent) => void,
@@ -179,8 +205,8 @@ function toSummary(
   };
 }
 
-// Lista todas as execuções conhecidas, mais recentes primeiro.
-export async function listThreads(): Promise<ThreadSummary[]> {
+// Lista as execuções DO DONO, mais recentes primeiro.
+export async function listThreads(ownerId: string): Promise<ThreadSummary[]> {
   const db = getDb();
   // Uma query só: para cada run, a ÚLTIMA versão e a nota dela. DISTINCT ON é
   // do Postgres — evita o N+1 que o loop por thread daria.
@@ -201,6 +227,8 @@ export async function listThreads(): Promise<ThreadSummary[]> {
     .from(runs)
     .leftJoin(lastVersion, eq(runs.threadId, lastVersion.threadId))
     .leftJoin(judgements, eq(judgements.draftVersionId, lastVersion.id))
+    // Filtrar em runs basta: versões e notas pendem daqui por FK.
+    .where(eq(runs.ownerId, ownerId))
     .orderBy(desc(runs.createdAt));
 
   return rows.map((r) =>
@@ -211,11 +239,19 @@ export async function listThreads(): Promise<ThreadSummary[]> {
 // Retorna os metadados/artefatos persistidos de um thread (ou null).
 // Usado como fallback pelo /api/mas/state quando o checkpoint está vazio.
 export async function getThread(
+  ownerId: string,
   threadId: string,
 ): Promise<ThreadSummary | null> {
   const db = getDb();
-  const [run] = await db.select().from(runs).where(eq(runs.threadId, threadId)).limit(1);
+  // Thread de outro dono devolve null, igual a inexistente: distinguir os dois
+  // casos confirmaria a existência do threadId para quem o adivinhou.
+  const [run] = await db
+    .select()
+    .from(runs)
+    .where(and(eq(runs.threadId, threadId), eq(runs.ownerId, ownerId)))
+    .limit(1);
   if (!run) return null;
+  // Daqui pra baixo a posse já está confirmada — as filhas podem ir por threadId.
 
   const [version] = await db
     .select({ id: draftVersions.id, content: draftVersions.content })
@@ -243,16 +279,23 @@ export type DeleteResult =
 // Remove a execução. As versões, notas e o post publicado caem junto por
 // ON DELETE CASCADE. Limpa subscribers antes pra minimizar corrida com o grafo
 // emitindo eventos pra um thread já removido.
-export async function deleteThread(threadId: string): Promise<DeleteResult> {
+export async function deleteThread(
+  ownerId: string,
+  threadId: string,
+): Promise<DeleteResult> {
+  // O delete no banco vem PRIMEIRO porque é ele que decide a posse. Limpar o Map
+  // antes derrubaria os subscribers de um thread alheio ao vivo — um não-dono não
+  // apagaria a linha, mas cortaria o SSE de quem está executando.
+  const deleted = await getDb()
+    .delete(runs)
+    .where(and(eq(runs.threadId, threadId), eq(runs.ownerId, ownerId)))
+    .returning({ threadId: runs.threadId });
+  if (deleted.length === 0) return { ok: false, reason: "not_found" };
+
   const t = live.get(threadId);
   if (t) {
     t.subscribers.clear();
     live.delete(threadId);
   }
-  const deleted = await getDb()
-    .delete(runs)
-    .where(eq(runs.threadId, threadId))
-    .returning({ threadId: runs.threadId });
-  if (deleted.length === 0) return { ok: false, reason: "not_found" };
   return { ok: true };
 }
