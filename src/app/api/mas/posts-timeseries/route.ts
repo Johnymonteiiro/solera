@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listPublishedPosts } from "@/app/MAS/lib/publishedPostsStore";
+import { requireArea } from "@/lib/dal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,11 +41,15 @@ function isPeriod(value: string | null): value is Period {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireArea("dashboard");
+  if (!auth.ok) return auth.response;
+  const ownerId = auth.ownerId;
+
   const raw = req.nextUrl.searchParams.get("period");
   const period: Period = isPeriod(raw) ? raw : "7d";
   const { windowMs, bucketMs } = PERIODS[period];
 
-  const published = await listPublishedPosts();
+  const published = await listPublishedPosts(ownerId);
   const now = Date.now();
   // Alinha o "agora" ao final do bucket atual pra evitar drift visual quando
   // o intervalo de poll passa o limite de hora/dia.

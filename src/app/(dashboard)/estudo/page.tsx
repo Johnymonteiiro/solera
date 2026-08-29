@@ -1,8 +1,13 @@
 import { EstudoView } from "@/components/dashboard/estudo-view";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { Topbar } from "@/components/dashboard/topbar";
+import { requireAreaPage } from "@/lib/dal";
 
-export default function Page() {
+export default async function Page() {
+  // A matriz de acesso decide (padrão: colaborador para cima). As rotas de
+  // export checam a mesma área por conta própria — esta guarda é a da página.
+  await requireAreaPage("estudo");
+
   return (
     <>
       <Topbar

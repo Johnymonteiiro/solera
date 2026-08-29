@@ -9,7 +9,7 @@ interface writerAgentProps {
 export async function writerAgent ({prompts, insightsList}: writerAgentProps) {
 
  const writer_agent = createAgent({
-  model: getBaseLlm(),
+  model: await getBaseLlm(),
   systemPrompt: prompts,
 });
 

@@ -3,12 +3,21 @@ import { resolveApiKey } from "../../lib/settingsStore";
 
 // Constrói uma instância lendo a chave/modelo das settings (com fallback .env).
 // Funções (não const) para pegar mudanças feitas em /configuracoes sem restart.
-export function getBaseLlm(): ChatOpenAI {
+//
+// Assíncronas desde que a config saiu do disco e foi para o Postgres: um cache
+// em memória preservaria a assinatura antiga, mas a primeira chamada de um
+// processo frio usaria a chave do .env e o `judgeMeta.model` registraria um
+// modelo que não foi o usado — dataset irreproduzível por conveniência de tipo.
+export async function getBaseLlm(): Promise<ChatOpenAI> {
+  const [model, apiKey] = await Promise.all([
+    resolveApiKey("LLM_MODEL"),
+    resolveApiKey("OPENAI_API_KEY"),
+  ]);
   return new ChatOpenAI({
-    model: resolveApiKey("LLM_MODEL") ?? "gpt-4o",
+    model: model ?? "gpt-4o",
     temperature: 0.3,
     timeout: 60_000,
-    apiKey: resolveApiKey("OPENAI_API_KEY"),
+    apiKey,
   });
 }
 
@@ -16,18 +25,22 @@ export function getBaseLlm(): ChatOpenAI {
 // com que modelo e temperatura cada nota foi produzida.
 export const JUDGE_TEMPERATURE = 0.1;
 
-export function getJudgeModelName(): string {
-  return resolveApiKey("LLM_MODEL") ?? "gpt-4o";
+export async function getJudgeModelName(): Promise<string> {
+  return (await resolveApiKey("LLM_MODEL")) ?? "gpt-4o";
 }
 
 // Judge — temperatura baixa para scoring determinístico. ATENÇÃO: baixa não é
 // zero e nem zero seria determinístico; a variação residual é medida pelo
 // test-retest (/api/mas/export/judge-repeat).
-export function getJudgeLlm(): ChatOpenAI {
+export async function getJudgeLlm(): Promise<ChatOpenAI> {
+  const [model, apiKey] = await Promise.all([
+    getJudgeModelName(),
+    resolveApiKey("OPENAI_API_KEY"),
+  ]);
   return new ChatOpenAI({
-    model: getJudgeModelName(),
+    model,
     temperature: JUDGE_TEMPERATURE,
     timeout: 60_000,
-    apiKey: resolveApiKey("OPENAI_API_KEY"),
+    apiKey,
   });
 }

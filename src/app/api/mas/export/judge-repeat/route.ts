@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStudySelection } from "@/app/MAS/lib/studySample";
 import { scoreDraft } from "@/app/MAS/nodes/judge.node";
+import { requireArea } from "@/lib/dal";
 import { sheetResponse } from "@/lib/sheet";
 
 export const runtime = "nodejs";
@@ -43,6 +44,11 @@ const COLUMNS = [
 ];
 
 export async function GET(req: NextRequest) {
+  // Área `estudo` na matriz. Dobrado de importante aqui: além do dado do
+  // estudo, cada rodada é uma chamada de LLM paga (6 posts × 5 = 30 chamadas).
+  const auth = await requireArea("estudo");
+  if (!auth.ok) return auth.response;
+
   const params = req.nextUrl.searchParams;
   const format = params.get("format");
   const requested = Number(params.get("n") ?? 5);
@@ -50,7 +56,7 @@ export async function GET(req: NextRequest) {
     ? Math.min(Math.max(Math.trunc(requested), 2), MAX_RUNS)
     : 5;
 
-  const { samples } = await getStudySelection();
+  const { samples } = await getStudySelection(auth.ownerId);
   if (!samples.length) {
     return NextResponse.json(
       { error: "Amostra vazia — nenhum tópico pareado com/sem judge." },

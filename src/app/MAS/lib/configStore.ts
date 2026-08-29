@@ -1,7 +1,7 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+import { agentConfigs, getDb, isDbConfigured } from "@/db";
 
-// Config dos agentes persistida em data/agent-config.json.
+// Config dos agentes persistida na tabela `agent_configs` (antes:
+// data/agent-config.json — ver drizzle/0006_config.sql).
 // - enabled: participa do pipeline (para o judge, enabled = loop de reescrita ligado;
 //   mesmo desligado ele ainda pontua uma vez, para o estudo Agent-as-judge).
 // - role: papel do agente — injetado como preâmbulo no system prompt (composeSystemPrompt).
@@ -58,36 +58,62 @@ function defaults(): AgentConfigMap {
   ) as AgentConfigMap;
 }
 
-const STORE_PATH = path.join(process.cwd(), "data", "agent-config.json");
-
-async function readRaw(): Promise<Partial<AgentConfigMap>> {
-  try {
-    const buf = await fs.readFile(STORE_PATH, "utf8");
-    const parsed = JSON.parse(buf);
-    return typeof parsed === "object" && parsed ? parsed : {};
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return {};
-    throw err;
-  }
-}
-
-// Config completa (defaults + o que estiver salvo). Sempre retorna os 6 agentes.
+// Config completa (defaults + o que estiver salvo). Sempre retorna os 6 agentes:
+// uma linha faltando no banco vira o default do código, nunca um agente ausente
+// — o pipeline não pode quebrar porque alguém nunca abriu a tela /agentes.
 export async function getAgentConfig(): Promise<AgentConfigMap> {
-  const stored = await readRaw();
   const base = defaults();
-  // Migração: config antiga usava a chave "critic" — aplica no "judge".
-  const legacy = (stored as Record<string, AgentConfig | undefined>).critic;
-  if (legacy && !stored.judge) base.judge = { ...base.judge, ...legacy };
+  if (!isDbConfigured()) return base;
+
+  const rows = await getDb().select().from(agentConfigs);
+  const byId = new Map(rows.map((r) => [r.agentId, r]));
+
+  // Migração herdada: a config antiga chamava o judge de "critic". Continua aqui
+  // porque a linha pode ter vindo assim do agent-config.json importado.
+  const legacy = byId.get("critic");
+  if (legacy && !byId.has("judge")) byId.set("judge", legacy);
+
   for (const id of AGENT_IDS) {
-    const s = stored[id];
-    if (s) base[id] = { ...base[id], ...s };
+    const r = byId.get(id);
+    if (!r) continue;
+    base[id] = {
+      enabled: r.enabled,
+      role: r.role || base[id].role,
+      promptOverride: r.promptOverride,
+    };
   }
   return base;
 }
 
-export async function saveAgentConfig(next: AgentConfigMap): Promise<void> {
-  await fs.mkdir(path.dirname(STORE_PATH), { recursive: true });
-  await fs.writeFile(STORE_PATH, JSON.stringify(next, null, 2), "utf8");
+export async function saveAgentConfig(
+  next: AgentConfigMap,
+  updatedBy: string | null = null,
+): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  for (const id of AGENT_IDS) {
+    const cfg = next[id];
+    await db
+      .insert(agentConfigs)
+      .values({
+        agentId: id,
+        enabled: cfg.enabled,
+        role: cfg.role,
+        promptOverride: cfg.promptOverride,
+        updatedAt: now,
+        updatedBy,
+      })
+      .onConflictDoUpdate({
+        target: agentConfigs.agentId,
+        set: {
+          enabled: cfg.enabled,
+          role: cfg.role,
+          promptOverride: cfg.promptOverride,
+          updatedAt: now,
+          updatedBy,
+        },
+      });
+  }
 }
 
 // Compõe o system prompt final de um agente a partir da config:

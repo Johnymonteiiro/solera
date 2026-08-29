@@ -5,8 +5,11 @@ import { RecentExecutionsList } from "@/components/dashboard/recent-executions-l
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { Topbar } from "@/components/dashboard/topbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { requireAreaPage } from "@/lib/dal";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  await requireAreaPage("dashboard");
+
   return (
     <>
       <Topbar

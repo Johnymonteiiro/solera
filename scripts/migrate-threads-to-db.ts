@@ -19,6 +19,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { draftVersions, getDb, judgements, runs } from "../src/db";
 import { normalizeTopic } from "../src/app/MAS/lib/topic";
+import { ownerFromEnv } from "./owner";
 
 type LegacyThread = {
   threadId: string;
@@ -53,6 +54,10 @@ async function main() {
     ? parsed
     : Object.values(parsed);
 
+  // O threads.json legado é anterior ao conceito de dono: tudo que está lá é de
+  // quem rodou o app em localhost, e OWNER_ID é quem assume essa autoria.
+  const ownerId = ownerFromEnv();
+
   const db = getDb();
   let runsIn = 0;
   let versionsIn = 0;
@@ -68,6 +73,7 @@ async function main() {
       .insert(runs)
       .values({
         threadId: t.threadId,
+        ownerId,
         topic,
         topicNorm: normalizeTopic(topic),
         postSize: t.postSize ?? "medium",

@@ -1,8 +1,10 @@
 import { listThreads, getThread } from "../src/app/MAS/lib/threadStore";
 import { listPublishedPosts } from "../src/app/MAS/lib/publishedPostsStore";
+import { ownerFromEnv } from "./owner";
 
 async function main() {
-  const all = await listThreads();
+  const ownerId = ownerFromEnv();
+  const all = await listThreads(ownerId);
   console.log(`listThreads(): ${all.length} execuções`);
   for (const t of all.slice(0, 6)) {
     console.log(
@@ -18,13 +20,13 @@ async function main() {
 
   const one = withDraft[0];
   if (one) {
-    const g = await getThread(one.threadId);
+    const g = await getThread(ownerId, one.threadId);
     console.log(
       `\ngetThread(${one.threadId.slice(0, 10)}): draft ${g?.draft?.length}ch, ` +
         `score ${g?.judgement?.score}, retries ${g?.judgeRetries}`,
     );
   }
-  console.log(`\nlistPublishedPosts(): ${(await listPublishedPosts()).length}`);
+  console.log(`\nlistPublishedPosts(): ${(await listPublishedPosts(ownerId)).length}`);
   process.exit(0);
 }
 main().catch((e) => { console.error("FALHOU:", e.message); process.exit(1); });

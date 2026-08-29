@@ -8,7 +8,7 @@ export async function searchWeb(
   language: SearchLanguage = "pt-BR",
   maxResults: number = 10,
 ): Promise<ResearchResult[]> {
-  const apiKey = resolveApiKey(
+  const apiKey = await resolveApiKey(
     navigatorProvider === "tavily" ? "TAVILY_API_KEY" : "BRAVE_API_KEY",
   );
   if (!apiKey) {

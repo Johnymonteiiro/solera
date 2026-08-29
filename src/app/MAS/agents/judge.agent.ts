@@ -9,7 +9,7 @@ interface judgeAgentProps {
 export async function judgeAgent ({ prompts, draft}: judgeAgentProps) {
 
  const judge_agent = createAgent({
-  model: getJudgeLlm(),
+  model: await getJudgeLlm(),
   systemPrompt: prompts,
 });
 

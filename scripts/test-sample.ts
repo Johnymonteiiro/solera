@@ -1,7 +1,8 @@
 import { getStudySelection } from "../src/app/MAS/lib/studySample";
+import { ownerFromEnv } from "./owner";
 
 async function main() {
-  const s = await getStudySelection();
+  const s = await getStudySelection(ownerFromEnv());
   const anyS = s as unknown as Record<string, unknown>;
   console.log("chaves:", Object.keys(anyS).join(", "));
   const sample = (anyS.samples ?? []) as Array<Record<string, unknown>>;

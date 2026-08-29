@@ -6,12 +6,10 @@ import { searchTool } from "../tools/searchTool";
 
 // Factory: injeta papel + override da config (/agentes). Override substitui o
 // prompt base; role vira preâmbulo. Vazios → usa o prompt do código.
-export function makeResearcherAgent(role = "", promptOverride = "") {
+export async function makeResearcherAgent(role = "", promptOverride = "") {
   return createAgent({
-    model: getBaseLlm(),
+    model: await getBaseLlm(),
     tools: [searchTool],
     systemPrompt: composeSystemPrompt(role, promptOverride, RESEARCHER_PROMPT),
   });
 }
-
-export const researcherAgent = makeResearcherAgent();

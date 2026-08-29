@@ -188,7 +188,15 @@ export function selectStudySample(threads: ThreadSummary[]): StudySelection {
   return { samples, excluded, topics };
 }
 
-/** Atalho: lê o threadStore e devolve a seleção pronta. */
-export async function getStudySelection(): Promise<StudySelection> {
-  return selectStudySample(await listThreads());
+/**
+ * Atalho: lê o threadStore e devolve a seleção pronta.
+ *
+ * A amostra é POR DONO. Cada usuário tem a própria coleta, e misturar execuções
+ * de pessoas diferentes na mesma amostra pareada quebraria o desenho em silêncio
+ * — o pareamento por tópico casaria runs de coletas distintas.
+ */
+export async function getStudySelection(
+  ownerId: string,
+): Promise<StudySelection> {
+  return selectStudySample(await listThreads(ownerId));
 }

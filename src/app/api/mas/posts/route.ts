@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { listPublishedPosts } from "@/app/MAS/lib/publishedPostsStore";
 import { listThreads } from "@/app/MAS/lib/threadStore";
 import { AgentStatus, PostSize } from "@/app/MAS/types/types";
+import { requireArea } from "@/lib/dal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,9 +24,13 @@ export interface PostRow {
 }
 
 export async function GET() {
+  const auth = await requireArea("posts");
+  if (!auth.ok) return auth.response;
+  const ownerId = auth.ownerId;
+
   const [threads, published] = await Promise.all([
-    listThreads(),
-    listPublishedPosts(),
+    listThreads(ownerId),
+    listPublishedPosts(ownerId),
   ]);
   const pubByThread = new Map(published.map((p) => [p.threadId, p]));
 

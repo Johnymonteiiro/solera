@@ -526,11 +526,19 @@ export function formOrder(pairs: RevisionPair[]): PairVersion[] {
   return seededShuffle(versions, SEED_REVISION_PAIRS);
 }
 
-/** Atalho: lê o banco (duas queries) e devolve a seleção pronta. */
-export async function getRevisionSelection(): Promise<RevisionSelection> {
+/**
+ * Atalho: lê o banco (duas queries) e devolve a seleção pronta.
+ *
+ * Escopada por dono, como a amostra do studySample: as duas queries têm que
+ * concordar sobre o conjunto de execuções, senão `getAllVersionHistories`
+ * traria versões de runs que `listRunMeta` não listou.
+ */
+export async function getRevisionSelection(
+  ownerId: string,
+): Promise<RevisionSelection> {
   const [runs, histories] = await Promise.all([
-    listRunMeta(),
-    getAllVersionHistories(),
+    listRunMeta(ownerId),
+    getAllVersionHistories(ownerId),
   ]);
   return selectRevisionPairs(runs, histories);
 }

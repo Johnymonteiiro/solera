@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { listPublishedPosts } from "@/app/MAS/lib/publishedPostsStore";
 import { listThreads } from "@/app/MAS/lib/threadStore";
 import { AgentStatus } from "@/app/MAS/types/types";
+import { requireArea } from "@/lib/dal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,8 +35,12 @@ function countWithinWindow(
 }
 
 export async function GET() {
-  const threads = await listThreads();
-  const published = await listPublishedPosts();
+  const auth = await requireArea("dashboard");
+  if (!auth.ok) return auth.response;
+  const ownerId = auth.ownerId;
+
+  const threads = await listThreads(ownerId);
+  const published = await listPublishedPosts(ownerId);
 
   const now = Date.now();
   const weekAgo = now - WEEK_MS;

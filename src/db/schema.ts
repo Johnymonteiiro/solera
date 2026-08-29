@@ -6,6 +6,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -23,11 +24,106 @@ import {
 // O par antes/depois do estudo = duas draftVersions consecutivas do mesmo run.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Configuração do workspace. Substitui data/settings.json e data/agent-config.json.
+//
+// Arquivo de processo não é config de app multi-usuário: não é auditável, some
+// no deploy e é invisível para quem não tem shell na máquina. Ver 0006_config.sql.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Credenciais e variáveis do workspace, em chave/valor.
+ *
+ * KV e não uma coluna por chave: a tela de Variáveis prevê chave nova sem
+ * migration. `isSecret` decide se o valor pode voltar num GET — quem lê é a
+ * rota de settings, que redige os segredos para presença + últimos 4 dígitos.
+ */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull().default(""),
+  isSecret: boolean("is_secret").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  /** linkedinId de quem gravou. Null nas linhas semeadas pela migration. */
+  updatedBy: text("updated_by"),
+});
+
+/**
+ * Config por agente do pipeline (o que a tela /agentes edita).
+ *
+ * `updatedBy` existe por causa do hazard conhecido: `promptOverride` muda o
+ * prompt do Judge em runtime e já corrompeu todas as notas uma vez. Quando uma
+ * nota sair estranha, "quem mexeu e quando" precisa ter resposta.
+ */
+export const agentConfigs = pgTable("agent_configs", {
+  agentId: text("agent_id").primaryKey(),
+  enabled: boolean("enabled").notNull().default(true),
+  role: text("role").notNull().default(""),
+  promptOverride: text("prompt_override").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  updatedBy: text("updated_by"),
+});
+
+/**
+ * Matriz papel × área. Só `user` e `colaborador` têm linha aqui.
+ *
+ * `admin` NÃO é persistido de propósito: tem acesso total por definição, e uma
+ * linha `admin/config/false` trancaria todo mundo para fora da própria tela de
+ * permissões, sem saída pela UI.
+ */
+export const rolePermissions = pgTable(
+  "role_permissions",
+  {
+    role: text("role").notNull(),
+    area: text("area").notNull(),
+    allowed: boolean("allowed").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    updatedBy: text("updated_by"),
+  },
+  (t) => [primaryKey({ columns: [t.role, t.area] })],
+);
+
+/**
+ * Pessoas que já logaram, e o que cada uma pode fazer.
+ *
+ * Populada no callback do OAuth: o LinkedIn é quem autentica, esta tabela é quem
+ * AUTORIZA. A chave é o `profile.sub` — o mesmo valor de `runs.owner_id`.
+ *
+ * Sem FK entre `runs.owner_id` e esta tabela de propósito, por ora: as execuções
+ * antigas ainda estão sem dono (backfill pendente, ver MULTIUSER-ISOLATION.md) e
+ * uma FK agora criaria uma armadilha de ordem entre backfill e primeiro login.
+ */
+export const users = pgTable(
+  "users",
+  {
+    linkedinId: text("linkedin_id").primaryKey(),
+    name: text("name").notNull().default(""),
+    email: text("email").notNull().default(""),
+    /** "user" | "colaborador" | "admin" — ver ROLES em src/lib/roles.ts. */
+    role: text("role").notNull().default("user"),
+    /**
+     * Conta desativada não loga e perde a sessão em curso — o papel é lido do
+     * banco a cada requisição, então o efeito é imediato mesmo com cookie de 60
+     * dias válido. É o mecanismo de "esta pessoa saiu da equipe".
+     */
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("users_role_idx").on(t.role), index("users_active_idx").on(t.active)],
+);
+
 /** Uma execução do grafo MAS. Espelha o que o threadStore chama de thread. */
 export const runs = pgTable(
   "runs",
   {
     threadId: text("thread_id").primaryKey(),
+    /**
+     * Dono da execução (`profile.sub` do LinkedIn, o mesmo de Session.linkedinId).
+     *
+     * Fonte ÚNICA de propriedade do schema: as tabelas filhas se escopam por
+     * innerJoin em runs, não por uma cópia da coluna. Ver drizzle/0003_owner.sql.
+     */
+    ownerId: text("owner_id").notNull(),
     topic: text("topic").notNull(),
     /** Tópico normalizado (sem acento/caixa/pontuação) — chave de pareamento. */
     topicNorm: text("topic_norm").notNull(),
@@ -55,7 +151,10 @@ export const runs = pgTable(
     excludedAt: timestamp("excluded_at", { withTimezone: true }),
     excludedReason: text("excluded_reason"),
   },
-  (t) => [index("runs_topic_norm_idx").on(t.topicNorm)],
+  (t) => [
+    index("runs_topic_norm_idx").on(t.topicNorm),
+    index("runs_owner_idx").on(t.ownerId),
+  ],
 );
 
 /**
@@ -198,6 +297,10 @@ export const humanRatingsRelations = relations(humanRatings, ({ one }) => ({
   }),
 }));
 
+export type UserRow = typeof users.$inferSelect;
+export type AppSettingRow = typeof appSettings.$inferSelect;
+export type AgentConfigRow = typeof agentConfigs.$inferSelect;
+export type RolePermissionRow = typeof rolePermissions.$inferSelect;
 export type Run = typeof runs.$inferSelect;
 export type DraftVersion = typeof draftVersions.$inferSelect;
 export type Judgement = typeof judgements.$inferSelect;
