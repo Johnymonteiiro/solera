@@ -1,0 +1,10 @@
+source-sha: 3a1828eabf1df4da
+---
+<insights note="use as support, not as the central content — filter out what does not help">
+{{INSIGHTS}}
+
+PREVIOUS DRAFT (to be corrected — basis for the rewrite):
+"""
+{{PREVIOUS_DRAFT}}
+"""
+</insights>

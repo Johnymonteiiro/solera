@@ -1,0 +1,10 @@
+source-sha: 72a495d448ab9d53
+---
+TOPIC: {{TOPIC}}
+
+SOURCES:
+[1] {{SOURCE_TITLE}}
+URL: {{URL}}
+{{FIRST_2000_CHARACTERS_OF_CONTENT}}
+
+[2] ...

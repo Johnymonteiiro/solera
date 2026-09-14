@@ -1,0 +1,10 @@
+source-sha: faef131d32540aa4
+---
+<length_target range="2000-2800 chars" label="Large">
+Hook + 4-5 blocks with a concrete example and supporting data + closing + specific CTA. 5-7 hashtags.
+Count the characters (including spaces and hashtags) before finishing.
+- Above 2800: cut adjectives and redundancies.
+- Below 2000: add ONE concrete example — do not pad with generalities.
+The range is a quality target, not an approval criterion: a post outside it is not rejected for that, but being far from the target usually means there is filler or missing substance.
+Absolute safety limit (never exceed): 3000 chars.
+</length_target>
