@@ -1,0 +1,10 @@
+source-sha: 4547c723afc841cf
+---
+<length_target range="500-900 chars" label="Small">
+Hook + 1-2 blocks of concentrated substance + closing. Short CTA. At most 1-2 emojis. 3-4 hashtags.
+Count the characters (including spaces and hashtags) before finishing.
+- Above 900: cut adjectives and redundancies.
+- Below 500: add ONE concrete example — do not pad with generalities.
+The range is a quality target, not an approval criterion: a post outside it is not rejected for that, but being far from the target usually means there is filler or missing substance.
+Absolute safety limit (never exceed): 3000 chars.
+</length_target>

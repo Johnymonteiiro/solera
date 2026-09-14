@@ -1,6 +1,7 @@
 # 01 · Researcher
 
-[Índice](README.md) · **Researcher** · [Analyst](02-analyst.md) · [Writer](03-writer.md) · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)
+[Índice](README.md) · **Researcher** · [Analyst](02-analyst.md) · [Writer](03-writer.md) · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)  
+🌐 [English translation](en/01-researcher.md)
 
 O Researcher recebe o tópico pedido e decide quais buscas fazer na web. Ele não escreve nada para o usuário: o que o pipeline aproveita são os resultados das buscas, que seguem para o Analyst.
 
@@ -77,4 +78,5 @@ Os resultados de todas as chamadas são deduplicados e ordenados por relevância
 
 ---
 
-[Índice](README.md) · **Researcher** · [Analyst](02-analyst.md) · [Writer](03-writer.md) · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)
+[Índice](README.md) · **Researcher** · [Analyst](02-analyst.md) · [Writer](03-writer.md) · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)  
+🌐 [English translation](en/01-researcher.md)

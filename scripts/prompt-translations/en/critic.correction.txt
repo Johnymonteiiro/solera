@@ -1,0 +1,9 @@
+source-sha: a6cdce94b9b43e42
+---
+<correcao priority="absolute">
+Your previous response contradicts your own diagnosis:
+
+- {{DIMENSION}}: you cited an issue with anchor {{ANCHOR}} and gave a score of {{SCORE}}.
+
+Redo the entire evaluation. For each case above, one of two things is wrong and only you know which: either the score is too high for the problem you described, or the issue was tagged with an anchor more severe than the problem really is. Fix whatever is wrong — do not invent a new issue or delete a real problem to make the numbers add up.
+</correcao>

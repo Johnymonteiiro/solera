@@ -4,6 +4,8 @@ Esta pasta reúne, na íntegra, os prompts usados pelos agentes do Solera e a ru
 
 > Gerado automaticamente em 2026-09-14 por `pnpm prompts:export`, a partir do código e da configuração dos agentes. Não edite à mão: altere a origem e gere de novo.
 
+🌐 **English translation:** [en/README.md](en/README.md)
+
 ## Índice
 
 | # | Agente | O que faz | Modelo (configuração atual) | Temperatura |
@@ -24,7 +26,7 @@ Esta pasta reúne, na íntegra, os prompts usados pelos agentes do Solera e a ru
 
 ## Como ler estes prompts
 
-- **Idioma.** Os prompts estão em português do Brasil, o idioma em que rodaram no estudo.
+- **Idioma.** Os prompts estão em português do Brasil, o idioma em que rodaram no estudo. A [tradução para o inglês](en/README.md) acompanha a mesma estrutura.
 - **Placeholders.** Trechos como `{{TÓPICO}}`, `{{INSIGHTS}}` e `{{POST}}` marcam o que é preenchido a cada execução.
 - **Montagem.** Cada prompt de sistema começa com o papel do agente (`PAPEL DESTE AGENTE: …`). Depois vem o texto do código ou, se houver, o override configurado na interface, que substitui o texto do código (Researcher, Analyst) ou é colocado antes dele (Writer, Critic). Na geração desta pasta havia override ativo em: **researcher, analyst**.
 - **Renderizado × transcrito.** Os prompts de sistema são renderizados pelas mesmas funções que o pipeline usa. Os blocos que os nós montam na hora (reescrita do Writer, pedido do revisor humano, correção de coerência do Critic) são transcritos do código e estão sinalizados como tal.

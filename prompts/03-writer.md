@@ -1,6 +1,7 @@
 # 03 · Writer
 
-[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · **Writer** · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)
+[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · **Writer** · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)  
+🌐 [English translation](en/03-writer.md)
 
 O Writer transforma os insights em um post de LinkedIn. Ele escreve a primeira versão e também as reescritas — quando o Critic reprova o texto ou quando o revisor humano pede mudanças. O prompt não repete a rubrica do Critic de propósito, para que o avaliador e o redator não se confundam.
 
@@ -230,4 +231,5 @@ Limite absoluto de segurança (jamais ultrapasse): 3000 chars.
 
 ---
 
-[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · **Writer** · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)
+[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · **Writer** · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)  
+🌐 [English translation](en/03-writer.md)

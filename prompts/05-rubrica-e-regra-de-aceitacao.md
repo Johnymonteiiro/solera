@@ -1,8 +1,9 @@
 # 05 · Rubrica e regra de aceitação
 
-[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · [Writer](03-writer.md) · [Critic](04-critic.md) · **Rubrica**
+[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · [Writer](03-writer.md) · [Critic](04-critic.md) · **Rubrica**  
+🌐 [English translation](en/05-rubric-and-acceptance-rule.md)
 
-A rubrica é o instrumento comum ao Critic e aos avaliadores humanos. O texto abaixo é o original em português, gerado de `src/app/MAS/lib/rubric.ts` — o mesmo arquivo que alimenta o prompt do Critic. A tradução para o inglês está no apêndice do artigo.
+A rubrica é o instrumento comum ao Critic e aos avaliadores humanos. O texto abaixo é o original em português, gerado de `src/app/MAS/lib/rubric.ts` — o mesmo arquivo que alimenta o prompt do Critic. A tradução para o inglês está em [en/05-rubric-and-acceptance-rule.md](en/05-rubric-and-acceptance-rule.md) e no apêndice do artigo.
 
 Versão da rubrica: `v2`.
 
@@ -92,4 +93,5 @@ Tamanho fora da faixa, link externo no corpo e pedido artificial de engajamento 
 
 ---
 
-[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · [Writer](03-writer.md) · [Critic](04-critic.md) · **Rubrica**
+[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · [Writer](03-writer.md) · [Critic](04-critic.md) · **Rubrica**  
+🌐 [English translation](en/05-rubric-and-acceptance-rule.md)

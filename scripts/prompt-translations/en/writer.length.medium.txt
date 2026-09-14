@@ -1,0 +1,10 @@
+source-sha: 8540298fe942c6b3
+---
+<length_target range="1200-1800 chars" label="Medium">
+Hook + 3-4 blocks that move the idea forward + closing + CTA. 4-6 hashtags.
+Count the characters (including spaces and hashtags) before finishing.
+- Above 1800: cut adjectives and redundancies.
+- Below 1200: add ONE concrete example — do not pad with generalities.
+The range is a quality target, not an approval criterion: a post outside it is not rejected for that, but being far from the target usually means there is filler or missing substance.
+Absolute safety limit (never exceed): 3000 chars.
+</length_target>

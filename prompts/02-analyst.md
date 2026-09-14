@@ -1,6 +1,7 @@
 # 02 · Analyst
 
-[Índice](README.md) · [Researcher](01-researcher.md) · **Analyst** · [Writer](03-writer.md) · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)
+[Índice](README.md) · [Researcher](01-researcher.md) · **Analyst** · [Writer](03-writer.md) · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)  
+🌐 [English translation](en/02-analyst.md)
 
 O Analyst lê as fontes coletadas, descarta as irrelevantes ou comerciais e extrai de 3 a 5 insights sobre o tópico. É o material que o Writer vai usar.
 
@@ -89,4 +90,5 @@ URL: {{URL}}
 
 ---
 
-[Índice](README.md) · [Researcher](01-researcher.md) · **Analyst** · [Writer](03-writer.md) · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)
+[Índice](README.md) · [Researcher](01-researcher.md) · **Analyst** · [Writer](03-writer.md) · [Critic](04-critic.md) · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)  
+🌐 [English translation](en/02-analyst.md)

@@ -80,6 +80,8 @@ Os prompts completos ficam na pasta [`prompts/`](prompts/README.md), um arquivo 
 
 Os prompts estão em português, o idioma em que rodaram. A pasta é gerada a partir do próprio sistema — não é uma cópia feita à mão —, então o que está ali é o que os agentes recebem.
 
+🌐 **English translation.** Todos os documentos acima têm tradução para o inglês em [`prompts/en/`](prompts/en/README.md), com a mesma estrutura: [Researcher](prompts/en/01-researcher.md) · [Analyst](prompts/en/02-analyst.md) · [Writer](prompts/en/03-writer.md) · [Critic](prompts/en/04-critic.md) · [Rubric](prompts/en/05-rubric-and-acceptance-rule.md). O original em português continua sendo a referência; se um prompt mudar e a tradução não for revisada, a página em inglês avisa.
+
 ## Como a qualidade é avaliada
 
 O Critic e os avaliadores humanos usam a mesma régua: uma nota de 1 (muito ruim) a 5 (excelente) em quatro aspectos, cada ponto da escala com uma descrição do que significa.

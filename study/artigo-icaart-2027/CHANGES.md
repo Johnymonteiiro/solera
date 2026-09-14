@@ -155,6 +155,10 @@ Sapkota et al. passou de 5 citações para 1.
   differently … for five of the ten posts" vem da comparação `study/data/corpus.csv`
   (juízo de 2026-08-29) × `critic-scores.csv` (2026-09-08) — é o único número do texto
   que não sai do script.
+- **Tradução dos prompts (`prompts/en/`)**: gerada pelo mesmo `pnpm prompts:export` a partir de
+  `scripts/prompt-translations/en/`. Cada bloco guarda o hash do original em português; se o
+  prompt mudar, a página em inglês mostra aviso. Revisar a tradução → `pnpm prompts:export --stamp`.
+  A rubrica em inglês usa a mesma redação do apêndice do artigo.
 - **Prompts citados (`prompts/`)**: Researcher e Analyst rodam com `promptOverride` gravado na
   config, que SUBSTITUI o prompt do código. O do Analyst é a versão anterior à reescrita de
   29/08 do `analyst.prompt.ts` — foi ela que gerou os insights dos posts do estudo. A pasta

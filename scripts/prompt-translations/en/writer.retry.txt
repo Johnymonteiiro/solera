@@ -1,0 +1,22 @@
+source-sha: bde87b94236d54c9
+---
+<insights note="use as support, not as the central content — filter out what does not help">
+{{INSIGHTS}}
+
+PREVIOUS DRAFT ({{DECISION}} from the judge — overall {{OVERALL}}/5; clarity {{CLARITY}}/5, relevance {{RELEVANCE}}/5, professional appropriateness {{PROFESSIONAL}}/5, engagement {{ENGAGEMENT}}/5):
+"""
+{{PREVIOUS_DRAFT}}
+"""
+
+PROBLEMS POINTED OUT BY THE JUDGE:
+- {{ISSUE_1}}
+- {{ISSUE_2}}
+
+SUGGESTIONS:
+- {{SUGGESTION_1}}
+
+CONFORMANCE FAILURES (must be fixed):
+- {{N_CHARACTERS}} chars, outside the 1200-1800 target — adjust without losing the central content
+
+Rewrite keeping what was good and fixing the problems pointed out. Do not redo the text from scratch: whatever the judge did not criticize must survive. Size target: Medium (1200-1800 chars).
+</insights>
