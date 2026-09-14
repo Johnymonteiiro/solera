@@ -1,6 +1,7 @@
 # 04 · Critic
 
-[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · [Writer](03-writer.md) · **Critic** · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)
+[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · [Writer](03-writer.md) · **Critic** · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)  
+🌐 [English translation](en/04-critic.md)
 
 O Critic (chamado de *Judge* no código e na interface) avalia cada post com a rubrica de quatro dimensões e dá uma nota geral. Ele não decide se o post é aprovado e não reescreve nada: a decisão sai de uma regra calculada em código a partir das notas, e as críticas dele voltam para o Writer.
 
@@ -187,4 +188,5 @@ Refaça a avaliação inteira. Para cada caso acima, uma das duas coisas está e
 
 ---
 
-[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · [Writer](03-writer.md) · **Critic** · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)
+[Índice](README.md) · [Researcher](01-researcher.md) · [Analyst](02-analyst.md) · [Writer](03-writer.md) · **Critic** · [Rubrica](05-rubrica-e-regra-de-aceitacao.md)  
+🌐 [English translation](en/04-critic.md)

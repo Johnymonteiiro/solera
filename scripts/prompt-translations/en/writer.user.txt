@@ -1,0 +1,5 @@
+source-sha: a0189898e2cfcb3d
+---
+1. {{INSIGHT_1}}
+2. {{INSIGHT_2}}
+3. {{INSIGHT_3}}
