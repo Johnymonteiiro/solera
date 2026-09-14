@@ -27,7 +27,7 @@ async function main() {
     console.log(
       `  ${marca} ${p.pairId.slice(0, 12)}…` +
         `v${p.before.version}→v${p.after.version} ${p.cause.padEnd(14)}` +
-        ` ${p.before.judgement?.score ?? "-"}→${p.after.judgement?.score ?? "-"}` +
+        ` ${p.before.judgement?.overall ?? "-"}→${p.after.judgement?.overall ?? "-"}` +
         ` (Δ ${p.deltaScore ?? "-"}) rótulos ${p.before.label ?? "-"}/${p.after.label ?? "-"}` +
         `${p.excludeReason ? ` [${p.excludeReason}]` : ""}` +
         `${p.sampleExclusion ? ` [fora do form: ${p.sampleExclusion}]` : ""}`,

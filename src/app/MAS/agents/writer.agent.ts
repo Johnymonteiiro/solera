@@ -1,15 +1,17 @@
 import { createAgent } from "langchain";
-import { getBaseLlm } from "../models/openAI/llm";
+import { getAgentLlm } from "../models/openAI/llm";
 
 
 interface writerAgentProps {
     prompts:string
     insightsList:string
+    /** Modelo desta execução (condição do corpus). Vazio = config global. */
+    modelOverride?:string
 }
-export async function writerAgent ({prompts, insightsList}: writerAgentProps) {
+export async function writerAgent ({prompts, insightsList, modelOverride}: writerAgentProps) {
 
  const writer_agent = createAgent({
-  model: await getBaseLlm(),
+  model: await getAgentLlm("writer", modelOverride),
   systemPrompt: prompts,
 });
 

@@ -5,6 +5,7 @@ import {
   MAX_REVISIONS,
   POST_SIZE_RANGES,
 } from "@/app/MAS/constants";
+import { ACCEPT_MIN } from "@/app/MAS/lib/rubric";
 import { HumanDecision } from "@/app/MAS/types/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -175,34 +176,41 @@ export function ReviewPopup({ threadId, topic, artifacts }: Props) {
         </div>
         <div className="grid grid-cols-4 gap-2">
           <Stat
-            label="SCORE GERAL"
-            value={judgement.score.toFixed(1)}
-            tone={scoreTone(judgement.score)}
+            label="DECISÃO"
+            value={judgement.decision === "ACCEPT" ? "✓ ACEITO" : "✗ REPROVADO"}
+            tone={judgement.decision === "ACCEPT" ? "green" : "red"}
+            small
           />
           <Stat
-            label="GANCHO"
-            value={judgement.hookQuality.toFixed(1)}
-            tone={scoreTone(judgement.hookQuality)}
+            label="GERAL"
+            value={`${judgement.overall}/5`}
+            tone={scoreTone(judgement.overall)}
           />
           <Stat
-            label="ORIGINALIDADE"
-            value={judgement.originality.toFixed(1)}
-            tone={scoreTone(judgement.originality)}
+            label="CLAREZA"
+            value={`${judgement.clarity}/5`}
+            tone={scoreTone(judgement.clarity)}
           />
           <Stat
-            label="SCANNABILITY"
-            value={judgement.scannability.toFixed(1)}
-            tone={scoreTone(judgement.scannability)}
+            label="RELEVÂNCIA"
+            value={`${judgement.relevance}/5`}
+            tone={scoreTone(judgement.relevance)}
           />
           <Stat
-            label="CTA"
-            value={judgement.ctaQuality.toFixed(1)}
-            tone={scoreTone(judgement.ctaQuality)}
+            label="PROFISSIONAL"
+            value={`${judgement.professional}/5`}
+            tone={scoreTone(judgement.professional)}
           />
           <Stat
-            label="TOM LINKEDIN"
-            value={judgement.toneLinkedIn ? "OK" : "—"}
-            tone={judgement.toneLinkedIn ? "green" : "amber"}
+            label="ENGAJAMENTO"
+            value={`${judgement.engagement}/5`}
+            tone={scoreTone(judgement.engagement)}
+          />
+          <Stat
+            label="TAMANHO"
+            value={judgement.lengthOk ? "✓ NA FAIXA" : "⚠ FORA"}
+            tone={judgement.lengthOk ? "green" : "amber"}
+            small
           />
           <Stat
             label="ENGAGEMENT BAIT"
@@ -343,9 +351,11 @@ export function ReviewPopup({ threadId, topic, artifacts }: Props) {
 
 type Tone = "green" | "amber" | "red" | "muted";
 
+// Escala 1–5 da rubrica v2. O corte no verde é ACCEPT_MIN, hoje o PISO da
+// regra: verde é folga, âmbar é a nota no piso. Quem decide é o composto.
 function scoreTone(score: number): Tone {
-  if (score >= 7) return "green";
-  if (score >= 5) return "amber";
+  if (score >= ACCEPT_MIN + 1) return "green";
+  if (score >= ACCEPT_MIN) return "amber";
   return "red";
 }
 

@@ -30,7 +30,7 @@ export function ReviewToast({ threadId, topic, status, artifacts }: Props) {
     const label = topic || "(sem tópico)";
     const reason = artifacts?.stoppedReason ?? null;
     const retries = artifacts?.judgeRetries ?? 0;
-    const score = artifacts?.judgement?.score ?? 0;
+    const score = artifacts?.judgement?.overall ?? 0;
     const isStuck = status === "awaiting_review" && retries >= MAX_JUDGE_RETRIES;
 
     // Done/error: dismiss e sai
@@ -74,14 +74,14 @@ export function ReviewToast({ threadId, topic, status, artifacts }: Props) {
     if (isStuck) {
       toast.warning(`Pipeline travado: ${label}`, {
         id: threadId,
-        description: `Score ${score.toFixed(1)} após ${retries} tentativas. Abra a revisão para decidir.`,
+        description: `Nota geral ${score}/5 após ${retries} tentativas. Abra a revisão para decidir.`,
         duration: Infinity,
         closeButton: true,
       });
     } else {
       toast.info(`Revisão pendente: ${label}`, {
         id: threadId,
-        description: `Score ${score.toFixed(1)} — abra o popup para aprovar, revisar ou cancelar.`,
+        description: `Nota geral ${score}/5 — abra o popup para aprovar, revisar ou cancelar.`,
         duration: Infinity,
         closeButton: true,
       });

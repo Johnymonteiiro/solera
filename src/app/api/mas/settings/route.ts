@@ -3,9 +3,6 @@ import { readAll, writeKeys } from "@/app/MAS/lib/settingsStore";
 import { getRole, requireAdmin, requireArea } from "@/lib/dal";
 import { FieldState, SETTING_FIELDS } from "@/lib/settings-fields";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 // Contrato PLANO, por chave — espelha a tabela `app_settings` e as abas da tela
 // (API Key = campos secretos, Variáveis = o resto). A forma aninhada antiga
 // (`{apiKeys, linkedin, tools, study}`) era herança do settings.json e obrigava

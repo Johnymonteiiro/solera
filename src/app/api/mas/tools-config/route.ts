@@ -3,9 +3,6 @@ import { getSettings, saveSettings } from "@/app/MAS/lib/settingsStore";
 import { NavigatorProvider } from "@/app/MAS/types/types";
 import { requireAdmin, requireArea } from "@/lib/dal";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 const PROVIDERS: NavigatorProvider[] = ["tavily", "brave"];
 
 export async function GET() {

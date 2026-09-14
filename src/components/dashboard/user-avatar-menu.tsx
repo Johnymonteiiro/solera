@@ -1,6 +1,6 @@
 "use client"
 
-import { LogOut, Settings, User } from "lucide-react"
+import { LogOut, Settings } from "lucide-react"
 import Link from "next/link"
 
 import { logout } from "@/app/actions"
@@ -59,15 +59,9 @@ export function UserAvatarMenu({ name, email }: UserAvatarMenuProps) {
 
         <DropdownMenuSeparator className="bg-[var(--border-subtle)]" />
 
-        <DropdownMenuItem asChild>
-          <Link
-            href="/perfil"
-            className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
-          >
-            <User className="size-3.5" />
-            Perfil
-          </Link>
-        </DropdownMenuItem>
+        {/* "Perfil" apontava para /perfil, que nunca foi criada — o item só
+            levava a 404. Removido até a página existir; quando ela
+            existir, é este bloco que volta (com o ícone `User` do lucide). */}
 
         <DropdownMenuItem asChild>
           <Link

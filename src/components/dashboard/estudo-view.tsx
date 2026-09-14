@@ -1,6 +1,14 @@
 "use client";
 
 import type { RevisionPair, RevisionStats } from "@/app/MAS/lib/revisionPairs";
+import {
+  ACCEPT_COMPOSITE_MIN,
+  ACCEPT_MIN,
+  DIMENSION_WEIGHTS,
+  OVERALL_QUESTION,
+  RUBRIC_DIMENSIONS,
+  type RubricDimension,
+} from "@/app/MAS/lib/rubric";
 import type { JudgeResult } from "@/app/MAS/types/types";
 import { StudyFormPanel } from "@/components/dashboard/study-form-panel";
 import {
@@ -27,54 +35,42 @@ interface Payload {
   stats: RevisionStats;
 }
 
-// Critérios compartilhados (form ↔ agente). `full`/`desc`/`rule` são a definição
-// do rubric em judge.prompt.ts — o mesmo texto que o Judge lê e que vai nas
-// perguntas do form. Se o rubric mudar, mudar aqui junto.
-const NUMERIC = [
+// Critérios compartilhados (form ↔ agente). Os textos vêm de `lib/rubric.ts`,
+// que é a fonte única do instrumento — o Judge lê as mesmas âncoras e o
+// formulário humano faz as mesmas perguntas. Antes este bloco era uma CÓPIA do
+// texto do prompt, com a instrução "se o rubric mudar, mudar aqui junto": é
+// exatamente esse tipo de cópia que diverge sem ninguém perceber.
+type NumericKey = RubricDimension | "overall";
+
+const SHORT: Record<RubricDimension, string> = {
+  clarity: "Clareza",
+  relevance: "Relev.",
+  professional: "Profis.",
+  engagement: "Engaj.",
+};
+
+const NUMERIC: {
+  key: NumericKey;
+  label: string;
+  full: string;
+  desc: string;
+  rule: string;
+}[] = [
   {
     key: "overall",
     label: "Geral",
-    full: "Qualidade geral (score)",
-    desc: "Nota holística considerando todas as dimensões e o impacto provável no algoritmo. É a última coisa que o Judge emite, depois das subnotas e do diagnóstico.",
-    rule: "Gate do pipeline: score ≥ 7 libera para revisão humana; abaixo disso volta para o writer.",
+    full: "Qualidade geral (overall)",
+    desc: `${OVERALL_QUESTION} É a última coisa que o Judge emite, depois das quatro dimensões — a ordem existe para a holística ser consequência delas, e não o contrário.`,
+    rule: `NÃO entra na regra de aceitação: quem decide é o composto ponderado das quatro (≥ ${ACCEPT_COMPOSITE_MIN}). A holística continua eliciada à parte para derivar os pesos empiricamente (holística ~ dimensões) e para comparar com a holística humana.`,
   },
-  {
-    key: "hook",
-    label: "Gancho",
-    full: "Gancho (hookQuality)",
-    desc: "Os primeiros ~210 caracteres — o que aparece antes do “ver mais” — param o scroll? Vale dado surpreendente, contradição, pergunta específica ou história pessoal.",
-    rule: "Abertura genérica (“vou falar sobre X”): ≤ 3.",
-  },
-  {
-    key: "originality",
-    label: "Orig.",
-    full: "Originalidade (originality)",
-    desc: "Traz insight próprio, dado concreto, anedota ou tese contrária — ou é senso comum genérico, o tipo de texto que qualquer LLM produziria sobre o tema?",
-    rule: "Sem ponto de vista próprio: ≤ 4.",
-  },
-  {
-    key: "scannability",
-    label: "Scan.",
-    full: "Escaneabilidade (scannability)",
-    desc: "Estrutura visual: frases curtas, parágrafos de 1–2 linhas, listas, espaço em branco. Mede se dá para escanear com os olhos antes de decidir ler.",
-    rule: "Parágrafo único denso: ≤ 3 · bem espaçado com bullets: 7+.",
-  },
-  {
-    key: "cta",
-    label: "CTA",
-    full: "Qualidade do CTA (ctaQuality)",
-    desc: "A chamada da última linha convida a um comentário real, ancorado no conteúdo do post e na experiência do leitor?",
-    rule: "Vago (“thoughts?”, “concorda?”): ≤ 4 · sem CTA: 0.",
-  },
-] as const;
-
-const AGENT_COL: Record<string, keyof JudgeResult> = {
-  overall: "score",
-  hook: "hookQuality",
-  originality: "originality",
-  scannability: "scannability",
-  cta: "ctaQuality",
-};
+  ...RUBRIC_DIMENSIONS.map((d) => ({
+    key: d.key,
+    label: SHORT[d.key],
+    full: `${d.label} (${d.key})`,
+    desc: d.question,
+    rule: `Peso no composto ${DIMENSION_WEIGHTS[d.key]} · piso ${ACCEPT_MIN}: ${d.anchors[ACCEPT_MIN as 3]}`,
+  })),
+];
 
 type HumanByPost = Record<string, Record<string, number>>;
 
@@ -157,16 +153,19 @@ function humanMeans(
   return out;
 }
 
-// Flags booleanas do JudgeResult. `bomQuandoTrue` diz a polaridade: as duas
-// primeiras são qualidades, as duas últimas são defeitos (e disparam os caps
-// duros do rubric — bait derruba o score para ≤ 4).
+// Flags do JudgeResult. `bomQuandoTrue` diz a polaridade.
+//
+// FORA da análise de alinhamento, de propósito: o avaliador humano não responde
+// nenhuma delas. As duas últimas são penalidades de algoritmo do LinkedIn — na
+// rubrica v1 elas CAPAVAM a nota, e o cap foi removido porque o humano avaliando
+// as mesmas dimensões não aplica cap nenhum: a divergência resultante não seria
+// sobre percepção. Continuam visíveis e alimentam os issues do Writer.
 const FLAGS: {
   key: keyof JudgeResult;
   label: string;
   bomQuandoTrue: boolean;
 }[] = [
-  { key: "lengthAdequate", label: "tamanho ok", bomQuandoTrue: true },
-  { key: "toneLinkedIn", label: "tom LinkedIn", bomQuandoTrue: true },
+  { key: "lengthOk", label: "tamanho ok", bomQuandoTrue: true },
   { key: "hasEngagementBait", label: "engagement bait", bomQuandoTrue: false },
   { key: "hasExternalLinkInBody", label: "link no corpo", bomQuandoTrue: false },
 ];
@@ -179,16 +178,16 @@ function VersionScores({ judgement }: { judgement: JudgeResult | null }) {
     );
   }
   const tone = (v: number) =>
-    v >= 7
+    v >= ACCEPT_MIN + 1
       ? "text-[var(--accent-green)]"
-      : v >= 5
+      : v >= ACCEPT_MIN
         ? "text-[var(--accent-amber)]"
         : "text-[var(--accent-red)]";
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {NUMERIC.map((c) => {
-          const v = judgement[AGENT_COL[c.key]] as number;
+          const v = judgement[c.key];
           return (
             <span key={c.key} className="text-[11px] text-[var(--text-muted)]">
               {c.label}{" "}
@@ -224,12 +223,15 @@ function VersionScores({ judgement }: { judgement: JudgeResult | null }) {
   );
 }
 
+// Escala 1–5 da rubrica v2: o corte do verde é ACCEPT_MIN, para a cor contar a
+// mesma história que o gate. Com os limiares antigos (0–10) toda nota do
+// instrumento novo apareceria em vermelho.
 function ScoreCell({ value }: { value: number | undefined }) {
   if (value == null) return <span className="text-[var(--text-muted)]">—</span>;
   const tone =
-    value >= 7
+    value >= ACCEPT_MIN + 1
       ? "text-[var(--accent-green)]"
-      : value >= 5
+      : value >= ACCEPT_MIN
         ? "text-[var(--accent-amber)]"
         : "text-[var(--accent-red)]";
   return <span className={`font-mono tabular-nums ${tone}`}>{value.toFixed(1)}</span>;
@@ -332,7 +334,7 @@ function PairComparison({ pair }: { pair: RevisionPair }) {
           </span>
         </span>
         <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--text-secondary)]">
-          {pair.before.judgement?.score ?? "—"} → {pair.after.judgement?.score ?? "—"}
+          {pair.before.judgement?.overall ?? "—"} → {pair.after.judgement?.overall ?? "—"}
         </span>
       </button>
 
@@ -594,7 +596,7 @@ export function EstudoView() {
             {rows.length ? (
               rows.map((r) => {
                 const h = human?.[r.post];
-                const agente = r.judgement?.score;
+                const agente = r.judgement?.overall;
                 const humano = h?.overall;
                 const delta =
                   agente != null && humano != null ? agente - humano : null;
@@ -615,11 +617,7 @@ export function EstudoView() {
                     {NUMERIC.map((c) => (
                       <td key={c.key} className="px-3 py-2.5 text-center">
                         <ScoreCell
-                          value={
-                            r.judgement
-                              ? (r.judgement[AGENT_COL[c.key]] as number)
-                              : undefined
-                          }
+                          value={r.judgement?.[c.key]}
                         />
                       </td>
                     ))}

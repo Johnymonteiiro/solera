@@ -2,15 +2,15 @@ import { GRAPH_RECURSION_LIMIT } from "@/app/MAS/constants";
 import { getGraph } from "@/app/MAS/graph/graph";
 import { flushCheckpointer } from "@/app/MAS/lib/checkpointer";
 import { AGENT_IDS, getAgentConfig } from "@/app/MAS/lib/configStore";
+import { DEFAULT_LANGUAGE } from "@/app/MAS/lib/language";
 import { createThread, emitEvent } from "@/app/MAS/lib/threadStore";
 import { NavigatorProvider, PostSize, SearchLanguage } from "@/app/MAS/types/types";
 import { requireArea } from "@/lib/dal";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 
-export const runtime = "nodejs";
-
 const VALID_POST_SIZES: PostSize[] = ["small", "medium", "large"];
+const VALID_LANGUAGES: SearchLanguage[] = ["pt-BR", "en-US"];
 
 interface RunBody {
   topic?: string;
@@ -21,6 +21,11 @@ interface RunBody {
   // (judge.enabled em /agentes). O estudo alterna com/sem judge no MESMO
   // tópico, então precisa decidir isto por run, não numa config global.
   judgeLoop?: boolean;
+  /**
+   * Condição experimental do corpus: modelo do writer NESTA execução.
+   * Vazio = o da config global. Ver drizzle/0010_writer_model.sql.
+   */
+  writerModel?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -39,12 +44,21 @@ export async function POST(req: NextRequest) {
   const {
     topic,
     navigatorProvider = "tavily",
-    language = "pt-BR",
+    language = DEFAULT_LANGUAGE,
     postSize = "small",
   } = body;
   if (!topic || topic.trim().length < 10) {
     return NextResponse.json(
       { error: "topic é obrigatório e precisa ter no mínimo 10 caracteres" },
+      { status: 400 },
+    );
+  }
+  // Idioma inválido não pode passar em silêncio: ele decide a língua do post,
+  // e um valor desconhecido cairia no ramo `pt-BR` dos prompts sem avisar
+  // ninguém — que é exatamente o bug que o seletor tinha.
+  if (!VALID_LANGUAGES.includes(language)) {
+    return NextResponse.json(
+      { error: "language inválido. Use 'pt-BR' ou 'en-US'." },
       { status: 400 },
     );
   }
@@ -71,7 +85,16 @@ export async function POST(req: NextRequest) {
   const threadId = `thread_${crypto.randomBytes(4).toString("hex")}`;
   // Awaited de propósito: draft_versions referencia runs.thread_id, então a
   // linha do run tem que existir antes de o writer gravar a v1.
-  const created = await createThread(ownerId, threadId, topic, postSize, judgeLoop);
+  const writerModel =
+    typeof body.writerModel === "string" ? body.writerModel.trim() : "";
+  const created = await createThread(
+    ownerId,
+    threadId,
+    topic,
+    postSize,
+    judgeLoop,
+    writerModel,
+  );
   if (!created) {
     // threadId é aleatório, então isto é colisão praticamente impossível — mas
     // seguir em frente penduraria as versões deste run na linha de outro dono.
@@ -90,6 +113,7 @@ export async function POST(req: NextRequest) {
           language,
           postSize,
           judgeLoop,
+          writerModel,
           disabledAgents,
         },
         {

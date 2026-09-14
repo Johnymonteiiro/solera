@@ -4,9 +4,6 @@ import { listThreads } from "@/app/MAS/lib/threadStore";
 import { AgentStatus, PostSize } from "@/app/MAS/types/types";
 import { requireArea } from "@/lib/dal";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 // Uma linha da tabela de Posts = uma execução que gerou rascunho, com info de
 // publicação (badge publicado/não + link do LinkedIn).
 export interface PostRow {

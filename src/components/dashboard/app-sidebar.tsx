@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  Activity,
-  BarChart3,
   Bot,
   FileText,
   FlaskConical,
@@ -84,19 +82,11 @@ const navAgentes: NavItem[] = [
   },
 ];
 
+// Analytics (/analytics) e LangSmith traces (/langsmith) saíram daqui em
+// 2026-09-05, a pedido: as páginas continuam existindo e acessíveis pela URL —
+// isto é só o link da sidebar. Para reativar, devolver as duas entradas com
+// `area: "analytics"` e `area: "traces"`, que seguem na matriz de permissões.
 const navSistema: NavItem[] = [
-  {
-    label: "Analytics",
-    href: "/analytics",
-    area: "analytics",
-    icon: BarChart3,
-  },
-  {
-    label: "LangSmith traces",
-    href: "/langsmith",
-    area: "traces",
-    icon: Activity,
-  },
   {
     label: "Estudo",
     href: "/estudo",

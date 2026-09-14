@@ -2,6 +2,7 @@
 
 import { DashboardStats } from "@/app/api/mas/dashboard-stats/route";
 import { KpiCard } from "@/components/dashboard/kpi-card";
+import { KpiGridSkeleton } from "@/components/dashboard/skeletons";
 import { BarChart3, CheckCircle, Eye, Play } from "lucide-react";
 import * as React from "react";
 
@@ -77,6 +78,10 @@ export function KpiGrid() {
       window.removeEventListener("mas:refresh", handler);
     };
   }, []);
+
+  // Primeira carga: esqueleto no lugar dos quatro cards com "—". O traço fazia
+  // o número aparecer por substituição, e a linha do badge mudava de largura.
+  if (!stats) return <KpiGridSkeleton />;
 
   const total = stats?.totalExecutions ?? 0;
   const published = stats?.publishedPosts ?? 0;

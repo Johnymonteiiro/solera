@@ -8,9 +8,6 @@ import {
 } from "@/lib/permissions";
 import { AREAS, AREA_IDS, isArea } from "@/lib/roles";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 // A matriz papel × área.
 //
 //   GET  /api/mas/role-permissions              → { matrix, areas }

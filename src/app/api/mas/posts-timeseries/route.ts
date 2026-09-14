@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { listPublishedPosts } from "@/app/MAS/lib/publishedPostsStore";
 import { requireArea } from "@/lib/dal";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 export type Period = "24h" | "3d" | "7d" | "30d";
 
 interface PeriodConfig {

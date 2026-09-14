@@ -49,16 +49,33 @@ const getViewer = cache(
     // saída para quando ninguém mais alcança a tela de usuários.
     if (isEnvAdmin(ownerId)) return { ownerId, role: "admin" };
 
-    try {
-      const { role, active } = await getUserAuth(ownerId);
-      if (!active) return null;
-      return { ownerId, role };
-    } catch (err) {
-      // Banco fora do ar não pode virar escalação de privilégio nem porta
-      // trancada: mantém a identidade e cai no menor papel.
-      console.error("[dal] falha ao ler papel — assumindo o menor:", err);
-      return { ownerId, role: DEFAULT_ROLE };
+    // Uma tentativa a mais antes de rebaixar. O banco fica em outra região
+    // (~300ms de RTT) atrás de um pooler em modo transaction: uma oscilação de
+    // conexão é comum e passa em milissegundos. Sem o retry, esse soluço
+    // derrubava um admin para o menor papel — e o efeito visível não era um
+    // erro, era a aplicação inteira parecendo quebrada (páginas redirecionando,
+    // rotas devolvendo 403) sem nada explicando por quê.
+    for (let tentativa = 1; tentativa <= 2; tentativa++) {
+      try {
+        const { role, active } = await getUserAuth(ownerId);
+        if (!active) return null;
+        return { ownerId, role };
+      } catch (err) {
+        if (tentativa === 1) {
+          console.warn("[dal] falha ao ler papel — tentando de novo:", err);
+          continue;
+        }
+        // Persistiu: mantém a identidade e cai no menor papel. Não escalar é
+        // inegociável; o preço é o admin ver menos coisa enquanto o banco não
+        // volta, e o log acima é o que explica a tela estranha.
+        console.error(
+          "[dal] falha ao ler papel nas 2 tentativas — assumindo o menor:",
+          err,
+        );
+        return { ownerId, role: DEFAULT_ROLE };
+      }
     }
+    return { ownerId, role: DEFAULT_ROLE };
   },
 );
 

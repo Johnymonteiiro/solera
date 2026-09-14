@@ -1,5 +1,6 @@
 "use client";
 
+import { PanelsSkeleton } from "@/components/dashboard/skeletons";
 import { NavigatorProvider } from "@/app/MAS/types/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -49,13 +50,7 @@ export function FerramentasView() {
     }
   }
 
-  if (!cfg) {
-    return (
-      <div className="py-20 text-center text-[13px] text-[var(--text-muted)]">
-        Carregando ferramentas...
-      </div>
-    );
-  }
+  if (!cfg) return <PanelsSkeleton cards={2} />;
 
   return (
     <div className="flex flex-col gap-4">

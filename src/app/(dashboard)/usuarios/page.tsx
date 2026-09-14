@@ -2,8 +2,6 @@ import { Topbar } from "@/components/dashboard/topbar";
 import { UsuariosView } from "@/components/dashboard/usuarios-view";
 import { requireAreaPage } from "@/lib/dal";
 
-export const dynamic = "force-dynamic";
-
 export default async function Page() {
   // Área `users` na matriz — por padrão só admin.
   const { ownerId } = await requireAreaPage("users");

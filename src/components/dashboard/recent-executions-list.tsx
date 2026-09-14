@@ -1,8 +1,10 @@
 "use client";
 
 import { AgentStatus, PostSize } from "@/app/MAS/types/types";
+import { ListRowsSkeleton } from "@/components/dashboard/skeletons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useThreads } from "./threads-provider";
 import Link from "next/link";
 import * as React from "react";
 import {
@@ -32,13 +34,20 @@ export { avatarFor, formatRelative } from "./_executions-shared";
 
 interface Props {
   // Modo controlado: se rows vier, o componente não faz fetch nem polling.
-  // Útil pra páginas que já mantêm a lista (ex: ExecucoesView precisa dela
-  // pra alimentar a pipeline visualization).
+  // Útil pra páginas que já mantêm a lista por conta própria.
   rows?: ThreadSummary[];
   loading?: boolean;
   // Selection opcional — habilita o destaque de linha + callback de click.
   selectedId?: string | null;
   onSelect?: (threadId: string) => void;
+  /**
+   * Teto de linhas renderizadas, aplicado DEPOIS do filtro de aba.
+   *
+   * O card do dashboard passa 5. Aplicar depois do filtro (e não antes) é o que
+   * faz a aba "Revisão" continuar achando pendências que não estão entre as 5
+   * mais recentes — cortar antes esvaziaria as abas em silêncio.
+   */
+  maxRows?: number;
 }
 
 function StatusPill({ status }: { status: AgentStatus }) {
@@ -73,47 +82,19 @@ export function RecentExecutionsList({
   loading: loadingProp,
   selectedId,
   onSelect,
+  maxRows,
 }: Props = {}) {
   const controlled = rowsProp !== undefined;
-  const [fetchedRows, setFetchedRows] = React.useState<ThreadSummary[]>([]);
-  const [fetchedLoading, setFetchedLoading] = React.useState(true);
+  // Não controlado ⇒ lê do ThreadsProvider. Antes tinha fetch + setInterval
+  // próprios, duplicando a mesma chamada que outros dois componentes faziam.
+  const compartilhado = useThreads();
   const [tab, setTab] = React.useState<TabKey>("all");
 
-  React.useEffect(() => {
-    if (controlled) return; // pai gerencia rows — não buscar
-    let cancelled = false;
-
-    async function refresh() {
-      try {
-        const res = await fetch("/api/mas/threads", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = (await res.json()) as { threads: ThreadSummary[] };
-        if (!cancelled) setFetchedRows(data.threads);
-      } catch {
-        // ignora — mantém valor anterior
-      } finally {
-        if (!cancelled) setFetchedLoading(false);
-      }
-    }
-
-    refresh();
-    const interval = setInterval(refresh, POLL_MS);
-    const handler = () => {
-      void refresh();
-    };
-    window.addEventListener("mas:thread-created", handler);
-    window.addEventListener("mas:refresh", handler);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-      window.removeEventListener("mas:thread-created", handler);
-      window.removeEventListener("mas:refresh", handler);
-    };
-  }, [controlled]);
-
-  const rows = controlled ? rowsProp! : fetchedRows;
-  const loading = controlled ? !!loadingProp : fetchedLoading;
-  const filtered = rows.filter((r) => matchesTab(r.status, tab));
+  const rows = controlled ? rowsProp! : compartilhado.threads;
+  const loading = controlled ? !!loadingProp : compartilhado.loading;
+  const doTab = rows.filter((r) => matchesTab(r.status, tab));
+  const filtered = maxRows ? doTab.slice(0, maxRows) : doTab;
+  const ocultas = doTab.length - filtered.length;
 
   return (
     <div className="flex flex-col">
@@ -138,9 +119,7 @@ export function RecentExecutionsList({
       </div>
 
       {loading && rows.length === 0 ? (
-        <div className="px-6 py-10 text-center text-[12px] text-[var(--text-muted)]">
-          Carregando execuções...
-        </div>
+        <ListRowsSkeleton rows={maxRows ?? 5} />
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-1.5 px-6 py-12 text-center">
           <p className="text-[13px] text-[var(--text-muted)]">
@@ -201,6 +180,17 @@ export function RecentExecutionsList({
               </li>
             );
           })}
+          {/* Sem isto o corte silencioso mentiria: a lista pareceria completa. */}
+          {ocultas > 0 && (
+            <li>
+              <Link
+                href="/posts"
+                className="block border-b border-[var(--border-subtle)] px-5 py-2.5 text-center text-[11px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-secondary)]"
+              >
+                + {ocultas} execuç{ocultas === 1 ? "ão" : "ões"} — ver todas em Posts
+              </Link>
+            </li>
+          )}
         </ul>
       )}
     </div>

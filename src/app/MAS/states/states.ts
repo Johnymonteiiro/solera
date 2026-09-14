@@ -1,5 +1,6 @@
 import { BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
+import { DEFAULT_LANGUAGE } from "../lib/language";
 import { AgentStatus, JudgeResult, HumanFeedback, NavigatorProvider, PostSize, ResearchResult, SearchLanguage, StoppedReason } from "../types/types";
 
 /*
@@ -18,9 +19,12 @@ export const AgentState = Annotation.Root({
     default: () => "tavily",
   }),
 
+  // Idioma do POST — não é preferência de busca. O researcher continua
+  // buscando em PT e EN de propósito; quem lê este campo é quem escreve
+  // texto para o usuário (analyst e writer). Ver lib/language.ts.
   language: Annotation<SearchLanguage>({
     value: (_prev, next) => next,
-    default: () => "pt-BR",
+    default: () => DEFAULT_LANGUAGE,
   }),
 
   postSize: Annotation<PostSize>({
@@ -34,6 +38,16 @@ export const AgentState = Annotation.Root({
   judgeLoop: Annotation<boolean>({
     value: (_prev, next) => next,
     default: () => true,
+  }),
+
+  // Condição experimental do corpus: modelo que ESCREVE esta execução.
+  // Vazio = o da config global (/agentes). Viaja no state em vez de mutar
+  // agent_configs entre runs — config mutável em runtime é o hazard conhecido
+  // do projeto, e uma condição que não fica gravada por execução vira ruído
+  // que ninguém explica depois.
+  writerModel: Annotation<string>({
+    value: (_prev, next) => next,
+    default: () => "",
   }),
 
   // Agentes desativados na config (/agentes). Cada nó verifica e vira passthrough
@@ -66,16 +80,19 @@ export const AgentState = Annotation.Root({
   // armazenar a crítica do post, que pode ser atualizada várias vezes
     judgement: Annotation<JudgeResult>({
     value: (_prev, next) => next,
+    // Sentinela de "ainda não avaliado": 0 está FORA da escala 1–5, então
+    // `overall > 0` distingue com segurança a primeira passada de um retry.
+    // decision="REJECT" mantém o comportamento seguro se o judge falhar.
     default: () => ({
-        score: 0,
-        hookQuality: 0,
-        originality: 0,
-        scannability: 0,
-        ctaQuality: 0,
-        lengthAdequate: false,
-        toneLinkedIn: false,
+        clarity: 0,
+        relevance: 0,
+        professional: 0,
+        engagement: 0,
+        overall: 0,
+        decision: "REJECT" as const,
         hasEngagementBait: false,
         hasExternalLinkInBody: false,
+        lengthOk: false,
         issues: [],
         suggestions: [],
     })

@@ -7,6 +7,8 @@ import {
 } from "@/components/dashboard/config-permissoes";
 import { ConfigChaves } from "@/components/dashboard/config-chaves";
 import { ConfigVariaveis } from "@/components/dashboard/config-variaveis";
+import { ConfigSkeleton } from "@/components/dashboard/skeletons";
+
 import { Button } from "@/components/ui/button";
 import { DEFAULT_ACCESS, ROLE_LABEL, type Area, type Role } from "@/lib/roles";
 import {
@@ -52,6 +54,9 @@ export function ConfiguracoesView({
 
   const [aba, setAba] = React.useState<Aba>(admin ? "permissoes" : "chaves");
   const [carregando, setCarregando] = React.useState(true);
+  // Com Cache Components a tela não desmonta ao navegar, então esta ref sobrevive
+  // à ida e volta — é o que impede o esqueleto de voltar num recarregar manual.
+  const carregouUmaVez = React.useRef(false);
   const [salvando, setSalvando] = React.useState(false);
 
   // Estado do servidor (a base contra a qual o rascunho é comparado).
@@ -66,28 +71,41 @@ export function ConfiguracoesView({
   const [roleEdits, setRoleEdits] = React.useState<Record<string, Role>>({});
 
   const carregar = React.useCallback(async () => {
-    setCarregando(true);
+    // Só mostra esqueleto na primeira carga: recarregar por cima de dado que
+    // já está na tela (depois de salvar, por exemplo) não pode apagá-la.
+    if (!carregouUmaVez.current) setCarregando(true);
     try {
       const rSettings = await fetch("/api/mas/settings");
       if (!rSettings.ok) throw new Error(`settings ${rSettings.status}`);
       const d = await rSettings.json();
-      setState(d.state ?? {});
-      setCanEdit(!!d.canEdit);
+      const novoState: Record<string, FieldState> = d.state ?? {};
+      const novoCanEdit = !!d.canEdit;
+      setState(novoState);
+      setCanEdit(novoCanEdit);
 
       // Usuários e matriz são admin-only: um não-admin com acesso à área
       // `config` vê as outras duas abas e nada quebra.
+      let novosUsers: AppUser[] | null = null;
+      let novaMatriz: AccessMatrix | null = null;
       if (admin) {
         const [rU, rM] = await Promise.all([
           fetch("/api/mas/users"),
           fetch("/api/mas/role-permissions"),
         ]);
-        if (rU.ok) setUsers((await rU.json()).users ?? []);
+        if (rU.ok) {
+          novosUsers = (await rU.json()).users ?? [];
+          setUsers(novosUsers);
+        }
         if (rM.ok) {
-          const m = (await rM.json()).matrix as AccessMatrix;
-          setMatrizBase(m);
-          setMatriz({ user: { ...m.user }, colaborador: { ...m.colaborador } });
+          novaMatriz = (await rM.json()).matrix as AccessMatrix;
+          setMatrizBase(novaMatriz);
+          setMatriz({
+            user: { ...novaMatriz.user },
+            colaborador: { ...novaMatriz.colaborador },
+          });
         }
       }
+      carregouUmaVez.current = true;
     } catch {
       toast.error("Falha ao carregar configurações");
     } finally {
@@ -218,13 +236,7 @@ export function ConfiguracoesView({
 
   const abasVisiveis = ABAS.filter((a) => a.id !== "permissoes" || admin);
 
-  if (carregando) {
-    return (
-      <div className="py-20 text-center text-[13px] text-[var(--text-muted)]">
-        Carregando configurações...
-      </div>
-    );
-  }
+  if (carregando) return <ConfigSkeleton />;
 
   return (
     <div className="flex flex-col">

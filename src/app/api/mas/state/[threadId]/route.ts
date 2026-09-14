@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGraph } from "@/app/MAS/graph/graph";
+import { getVersionHistory } from "@/app/MAS/lib/studyRecorder";
 import { getThread } from "@/app/MAS/lib/threadStore";
 import { requireArea } from "@/lib/dal";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: NextRequest,
@@ -28,6 +26,12 @@ export async function GET(
   const snapshot = await graph.getState({
     configurable: { thread_id: threadId },
   });
+
+  // Histórico de versões: vem do registro do estudo, não do checkpoint. É o
+  // único lugar que sabe QUANTAS reescritas o judge pediu — `judgeRetries`
+  // conta junto as passadas de revisão humana, e o state só guarda o draft
+  // corrente. Sem o texto: a tela precisa do placar, não de N cópias do post.
+  const history = await getVersionHistory(ownerId, threadId);
 
   const values = snapshot?.values ?? {};
 
@@ -54,5 +58,12 @@ export async function GET(
     stoppedReason: values.stoppedReason ?? null,
     postSize: values.postSize ?? stored?.postSize ?? "medium",
     finalPostUrl: values.finalPostUrl ?? null,
+    versions: history.map((v) => ({
+      version: v.version,
+      trigger: v.trigger,
+      charCount: v.charCount,
+      overall: v.judgement?.overall ?? null,
+      decision: v.judgement?.decision ?? null,
+    })),
   });
 }

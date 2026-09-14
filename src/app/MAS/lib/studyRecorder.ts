@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { draftVersions, getDb, isDbConfigured, judgements, runs } from "@/db";
-import { AgentStatus, JudgeResult, JudgeRunMeta } from "../types/types";
+import { AgentStatus, Decision, JudgeResult, JudgeRunMeta, PostSize } from "../types/types";
+
+/** Gate da rubrica v1 (score 0–10 ≥ 7). Só para reler a coleta antiga. */
+const LEGACY_ACCEPT_SCORE = 7;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Gravação do registro de pesquisa (append-only) no Postgres.
@@ -139,44 +142,57 @@ export async function recordJudgement(input: {
     }
 
     const j = input.judgement;
+    // Só as colunas da v2. As da v1 ficam NULL nas linhas novas — a versão do
+    // instrumento viaja em `rubricVersion`, que é o que a análise filtra.
+    const values = {
+      clarity: j.clarity,
+      relevance: j.relevance,
+      professional: j.professional,
+      engagement: j.engagement,
+      overall: j.overall,
+      decision: j.decision,
+      lengthOk: j.lengthOk,
+      hasEngagementBait: j.hasEngagementBait,
+      hasExternalLinkInBody: j.hasExternalLinkInBody,
+      issues: j.issues ?? [],
+      suggestions: j.suggestions ?? [],
+      // A marcação crua e o registro de correção viajam junto das notas: sem
+      // eles não dá para dizer depois com que frequência o juiz contradisse o
+      // próprio diagnóstico, que é resultado do estudo. Ver 0011.
+      findings: j.findings ?? null,
+      coherenceClamped: j.coherenceClamped ?? false,
+      judgedAt: new Date(input.meta.judgedAt),
+    };
     await db
       .insert(judgements)
       .values({
         id: randomUUID(),
         draftVersionId: target.id,
-        score: j.score,
-        hookQuality: j.hookQuality,
-        originality: j.originality,
-        scannability: j.scannability,
-        ctaQuality: j.ctaQuality,
-        lengthAdequate: j.lengthAdequate,
-        toneLinkedIn: j.toneLinkedIn,
-        hasEngagementBait: j.hasEngagementBait,
-        hasExternalLinkInBody: j.hasExternalLinkInBody,
-        issues: j.issues ?? [],
-        suggestions: j.suggestions ?? [],
+        ...values,
         model: input.meta.model,
         temperature: input.meta.temperature,
         rubricHash: input.meta.rubricHash,
-        judgedAt: new Date(input.meta.judgedAt),
+        rubricVersion: input.meta.rubricVersion,
       })
       // Re-julgar a mesma versão (replay de checkpoint) atualiza no lugar —
       // draftVersionId é unique, então 1 nota por versão continua valendo.
       .onConflictDoUpdate({
         target: judgements.draftVersionId,
+        // A PROCEDÊNCIA INTEIRA entra no UPDATE, não só as notas.
+        //
+        // Re-julgar acontece de verdade: replay de checkpoint, mudança de
+        // instrumento (v1→v2) ou troca do modelo do Judge. Se `model`,
+        // `temperature`, `rubricHash` ou `rubricVersion` ficassem de fora, a
+        // linha guardaria notas novas com a procedência ANTIGA — o dataset
+        // afirmaria um juiz que não produziu aquela nota, sem erro nenhum
+        // aparecer. É a mesma classe de falha silenciosa que já custou todas as
+        // notas do Judge uma vez.
         set: {
-          score: j.score,
-          hookQuality: j.hookQuality,
-          originality: j.originality,
-          scannability: j.scannability,
-          ctaQuality: j.ctaQuality,
-          lengthAdequate: j.lengthAdequate,
-          toneLinkedIn: j.toneLinkedIn,
-          hasEngagementBait: j.hasEngagementBait,
-          hasExternalLinkInBody: j.hasExternalLinkInBody,
-          issues: j.issues ?? [],
-          suggestions: j.suggestions ?? [],
-          judgedAt: new Date(input.meta.judgedAt),
+          ...values,
+          model: input.meta.model,
+          temperature: input.meta.temperature,
+          rubricHash: input.meta.rubricHash,
+          rubricVersion: input.meta.rubricVersion,
         },
       });
   } catch (err) {
@@ -193,20 +209,35 @@ export async function recordJudgement(input: {
 
 type JudgementRow = typeof judgements.$inferSelect;
 
-/** Linha do banco → JudgeResult (o formato que UI, exports e análise usam). */
+/**
+ * Linha do banco → JudgeResult (o formato que UI, exports e análise usam).
+ *
+ * LINHAS DA v1 (score 0–10, sem as quatro dimensões): as dimensões voltam como
+ * 0 — sentinela de "não avaliado neste instrumento", nunca como nota — e a
+ * decisão é reconstruída pela regra que ESTAVA EM VIGOR quando aquela nota foi
+ * dada (score ≥ 7). Isso não é inventar dado: é registrar o gate da época. Quem
+ * separa as duas coletas é `rubricVersion`, em JudgeRunMeta.
+ */
 export function toJudgeResult(row: JudgementRow): JudgeResult {
+  const decision: Decision =
+    (row.decision as Decision | null) ??
+    ((row.score ?? 0) >= LEGACY_ACCEPT_SCORE ? "ACCEPT" : "REJECT");
   return {
-    score: row.score,
-    hookQuality: row.hookQuality,
-    originality: row.originality,
-    scannability: row.scannability,
-    ctaQuality: row.ctaQuality,
-    lengthAdequate: row.lengthAdequate,
-    toneLinkedIn: row.toneLinkedIn,
+    clarity: row.clarity ?? 0,
+    relevance: row.relevance ?? 0,
+    professional: row.professional ?? 0,
+    engagement: row.engagement ?? 0,
+    overall: row.overall ?? 0,
+    decision,
     hasEngagementBait: row.hasEngagementBait,
     hasExternalLinkInBody: row.hasExternalLinkInBody,
+    lengthOk: row.lengthOk ?? row.lengthAdequate ?? false,
     issues: row.issues ?? [],
     suggestions: row.suggestions ?? [],
+    // `undefined`, não `[]`: ausência de marcação (avaliação anterior ao
+    // contrato ancorado) não é o mesmo que "nenhum problema marcado".
+    findings: row.findings ?? undefined,
+    coherenceClamped: row.coherenceClamped,
   };
 }
 
@@ -216,6 +247,7 @@ export function toJudgeMeta(row: JudgementRow): JudgeRunMeta {
     model: row.model,
     temperature: row.temperature,
     rubricHash: row.rubricHash,
+    rubricVersion: row.rubricVersion,
     judgedAt: row.judgedAt.toISOString(),
   };
 }
@@ -331,6 +363,8 @@ export interface RunMetaRecord {
   topicNorm: string;
   status: AgentStatus;
   judgeLoop: boolean;
+  /** Condição do corpus: modelo que escreveu. Vazio = config global da época. */
+  writerModel: string;
   revisionCount: number;
   judgeRetries: number;
   createdAt: string;
@@ -349,6 +383,7 @@ export async function listRunMeta(ownerId: string): Promise<RunMetaRecord[]> {
       topicNorm: runs.topicNorm,
       status: runs.status,
       judgeLoop: runs.judgeLoop,
+      writerModel: runs.writerModel,
       revisionCount: runs.revisionCount,
       judgeRetries: runs.judgeRetries,
       createdAt: runs.createdAt,
@@ -367,6 +402,51 @@ export async function listRunMeta(ownerId: string): Promise<RunMetaRecord[]> {
     completedAt: r.completedAt?.toISOString() ?? null,
     excludedAt: r.excludedAt?.toISOString() ?? null,
     excludedReason: r.excludedReason,
+  }));
+}
+
+/** ENTRADAS do writer numa execução — o que o researcher/analyst produziram. */
+export interface RunInputsRecord {
+  threadId: string;
+  topic: string;
+  topicNorm: string;
+  postSize: PostSize;
+  /** Insights do analyst. `[]` quando a execução abortou antes de escrever. */
+  insights: string[];
+  createdAt: string;
+}
+
+/**
+ * Lê tópico + insights por execução, para reexecutar o WRITER sem re-rodar
+ * researcher e analyst.
+ *
+ * É o oposto deliberado de `listRunMeta`, que corta os blobs de pesquisa porque
+ * eles não entram no desenho. Aqui eles SÃO o objeto: o experimento dos braços
+ * (`pnpm arms`) manipula a quantidade de insights entregue ao writer, e para
+ * isso os dois braços têm que partir da MESMA pesquisa. Regerá-la por braço
+ * misturaria variância de busca com o efeito que se quer medir — sem contar que
+ * pagaria researcher e analyst de novo a cada execução.
+ */
+export async function listRunInputs(ownerId: string): Promise<RunInputsRecord[]> {
+  if (!isDbConfigured()) return [];
+  const rows = await getDb()
+    .select({
+      threadId: runs.threadId,
+      topic: runs.topic,
+      topicNorm: runs.topicNorm,
+      postSize: runs.postSize,
+      insights: runs.insights,
+      createdAt: runs.createdAt,
+    })
+    .from(runs)
+    .where(eq(runs.ownerId, ownerId))
+    .orderBy(desc(runs.createdAt));
+
+  return rows.map((r) => ({
+    ...r,
+    postSize: r.postSize as PostSize,
+    insights: r.insights ?? [],
+    createdAt: r.createdAt.toISOString(),
   }));
 }
 

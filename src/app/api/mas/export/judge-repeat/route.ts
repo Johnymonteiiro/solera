@@ -4,8 +4,6 @@ import { scoreDraft } from "@/app/MAS/nodes/judge.node";
 import { requireArea } from "@/lib/dal";
 import { sheetResponse } from "@/lib/sheet";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 // Cada draft × n rodadas é uma chamada de LLM; com 6 posts × 5 rodadas são 30.
 export const maxDuration = 300;
 
@@ -19,6 +17,13 @@ export const maxDuration = 300;
 // juiz é estável, e "o juiz concorda com humanos" fica sem piso de comparação.
 // O script de análise lê este CSV como `judge-repeat.csv` e calcula SD e ICC(2,1).
 //
+// No desenho v2 isto virou peça central, não acessório: o alinhamento
+// juiz–humano é limitado pela confiabilidade do PRÓPRIO juiz. Sem o teste-reteste,
+// uma correlação baixa não distingue "o juiz discorda dos humanos" de "o juiz
+// discorda de si mesmo" — e a segunda leitura é uma conclusão diferente.
+// Também vale para a decisão: reportar quantas vezes o ACCEPT/REJECT vira entre
+// rodadas do mesmo texto.
+//
 // ATENÇÃO: gasta crédito de LLM. Não é chamado por nenhuma tela — é manual.
 
 const MAX_RUNS = 10;
@@ -28,17 +33,18 @@ const COLUMNS = [
   { header: "threadId", key: "threadId", width: 38 },
   { header: "condition", key: "condition", width: 12 },
   { header: "run", key: "run" },
-  { header: "score", key: "score" },
-  { header: "hookQuality", key: "hookQuality" },
-  { header: "originality", key: "originality" },
-  { header: "scannability", key: "scannability" },
-  { header: "ctaQuality", key: "ctaQuality" },
-  { header: "lengthAdequate", key: "lengthAdequate" },
-  { header: "toneLinkedIn", key: "toneLinkedIn" },
+  { header: "clarity", key: "clarity" },
+  { header: "relevance", key: "relevance" },
+  { header: "professional", key: "professional" },
+  { header: "engagement", key: "engagement" },
+  { header: "overall", key: "overall" },
+  { header: "decision", key: "decision", width: 10 },
+  { header: "lengthOk", key: "lengthOk" },
   { header: "hasEngagementBait", key: "hasEngagementBait" },
   { header: "hasExternalLinkInBody", key: "hasExternalLinkInBody" },
   { header: "judgeModel", key: "judgeModel", width: 16 },
   { header: "judgeTemperature", key: "judgeTemperature" },
+  { header: "rubricVersion", key: "rubricVersion", width: 10 },
   { header: "rubricHash", key: "rubricHash", width: 18 },
   { header: "judgedAt", key: "judgedAt", width: 22 },
 ];
@@ -85,17 +91,18 @@ export async function GET(req: NextRequest) {
         threadId: sample.threadId,
         condition: sample.condition,
         run,
-        score: judgement.score,
-        hookQuality: judgement.hookQuality,
-        originality: judgement.originality,
-        scannability: judgement.scannability,
-        ctaQuality: judgement.ctaQuality,
-        lengthAdequate: judgement.lengthAdequate,
-        toneLinkedIn: judgement.toneLinkedIn,
+        clarity: judgement.clarity,
+        relevance: judgement.relevance,
+        professional: judgement.professional,
+        engagement: judgement.engagement,
+        overall: judgement.overall,
+        decision: judgement.decision,
+        lengthOk: judgement.lengthOk,
         hasEngagementBait: judgement.hasEngagementBait,
         hasExternalLinkInBody: judgement.hasExternalLinkInBody,
         judgeModel: meta.model,
         judgeTemperature: meta.temperature,
+        rubricVersion: meta.rubricVersion,
         rubricHash: meta.rubricHash,
         judgedAt: meta.judgedAt,
       });

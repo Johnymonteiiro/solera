@@ -4,9 +4,6 @@ import { getThread, subscribeToThread } from "@/app/MAS/lib/threadStore";
 import { StatusEvent } from "@/app/MAS/types/types";
 import { requireArea } from "@/lib/dal";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ threadId: string }> },

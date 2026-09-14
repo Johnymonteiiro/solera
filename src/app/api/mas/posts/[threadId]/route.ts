@@ -3,9 +3,6 @@ import { getPublishedPost } from "@/app/MAS/lib/publishedPostsStore";
 import { getThread } from "@/app/MAS/lib/threadStore";
 import { requireArea } from "@/lib/dal";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 // Detalhe de um post/execução: metadados do thread + info de publicação.
 // Os artefatos por agente (insights, judgement, draft...) vêm de /api/mas/state/[threadId].
 export async function GET(

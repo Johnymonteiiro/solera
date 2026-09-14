@@ -3,9 +3,6 @@ import { getStudySelection, StudySample } from "@/app/MAS/lib/studySample";
 import { requireArea } from "@/lib/dal";
 import { sheetResponse } from "@/lib/sheet";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 // Export das métricas do agente para o estudo Agent-as-judge.
 //   GET /api/mas/export/agent-metrics                 → JSON { samples, excluded, topics }
 //   GET /api/mas/export/agent-metrics?format=csv      → CSV (entrada da análise)
@@ -28,18 +25,19 @@ const COLUMNS: { header: string; key: string; width?: number }[] = [
   { header: "status", key: "status", width: 14 },
   { header: "revisionCount", key: "revisionCount" },
   { header: "judgeRetries", key: "judgeRetries" },
-  { header: "score", key: "score" },
-  { header: "hookQuality", key: "hookQuality" },
-  { header: "originality", key: "originality" },
-  { header: "scannability", key: "scannability" },
-  { header: "ctaQuality", key: "ctaQuality" },
-  { header: "lengthAdequate", key: "lengthAdequate" },
-  { header: "toneLinkedIn", key: "toneLinkedIn" },
+  { header: "clarity", key: "clarity" },
+  { header: "relevance", key: "relevance" },
+  { header: "professional", key: "professional" },
+  { header: "engagement", key: "engagement" },
+  { header: "overall", key: "overall" },
+  { header: "decision", key: "decision", width: 10 },
+  { header: "lengthOk", key: "lengthOk" },
   { header: "hasEngagementBait", key: "hasEngagementBait" },
   { header: "hasExternalLinkInBody", key: "hasExternalLinkInBody" },
   { header: "charCount", key: "charCount" },
   { header: "judgeModel", key: "judgeModel", width: 16 },
   { header: "judgeTemperature", key: "judgeTemperature" },
+  { header: "rubricVersion", key: "rubricVersion", width: 10 },
   { header: "rubricHash", key: "rubricHash", width: 18 },
   { header: "judgedAt", key: "judgedAt", width: 22 },
   { header: "conteudo", key: "conteudo", width: 60 },
@@ -65,19 +63,20 @@ function metricsRow(s: StudySample) {
     status: s.status,
     revisionCount: s.revisionCount ?? "",
     judgeRetries: s.judgeRetries ?? "",
-    score: j.score,
-    hookQuality: j.hookQuality,
-    originality: j.originality,
-    scannability: j.scannability,
-    ctaQuality: j.ctaQuality,
-    lengthAdequate: j.lengthAdequate,
-    toneLinkedIn: j.toneLinkedIn,
+    clarity: j.clarity,
+    relevance: j.relevance,
+    professional: j.professional,
+    engagement: j.engagement,
+    overall: j.overall,
+    decision: j.decision,
+    lengthOk: j.lengthOk,
     hasEngagementBait: j.hasEngagementBait,
     hasExternalLinkInBody: j.hasExternalLinkInBody,
     charCount: s.draft.length,
     // Procedência: vazio nas execuções anteriores ao registro de JudgeRunMeta.
     judgeModel: s.judgeMeta?.model ?? "",
     judgeTemperature: s.judgeMeta?.temperature ?? "",
+    rubricVersion: s.judgeMeta?.rubricVersion ?? "",
     rubricHash: s.judgeMeta?.rubricHash ?? "",
     judgedAt: s.judgeMeta?.judgedAt ?? "",
     conteudo: s.draft,

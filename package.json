@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev",
+    "dev:webpack": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "db:generate": "dotenv -e .env.local -- drizzle-kit generate",
@@ -13,9 +14,18 @@
     "db:check": "dotenv -e .env.local -- tsx scripts/check-db.ts",
     "db:backfill-owner": "dotenv -e .env.local -- tsx scripts/backfill-owner.ts",
     "db:import-config": "dotenv -e .env.local -- tsx scripts/import-config.ts",
+    "corpus:generate": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/generate-corpus.ts",
+    "corpus:rejudge": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/rejudge-corpus.ts",
+    "arms": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/writer-arms.ts",
     "test:pairs": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/test-revision-pairs.ts",
     "test:sample-rule": "tsx --tsconfig tsconfig.json scripts/test-sample-rule.ts",
-    "study:exclude": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/study-exclude.ts"
+    "test:corpus-rule": "tsx --tsconfig tsconfig.json scripts/test-corpus-rule.ts",
+    "test:decision": "tsx --tsconfig tsconfig.json scripts/test-decision-rule.ts",
+    "study:exclude": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/study-exclude.ts",
+    "study:corpus-csv": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/export-corpus-csv.ts",
+    "study:import-humans": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/import-human-ratings.ts",
+    "study:critic-form": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/study-critic-form.ts",
+    "prompts:export": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/export-prompts.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.1.39",

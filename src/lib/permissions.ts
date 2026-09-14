@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { cachedReader } from "@/app/MAS/lib/configCache";
 import { getDb, isDbConfigured, rolePermissions } from "@/db";
 import { AREAS, AREA_IDS, Area, DEFAULT_ACCESS, Role } from "./roles";
 
@@ -25,43 +25,59 @@ export function defaultMatrix(): AccessMatrix {
   };
 }
 
-/** A matriz inteira — o que a tela de permissões desenha. */
-export async function getAccessMatrix(): Promise<AccessMatrix> {
-  const matrix = defaultMatrix();
-  if (!isDbConfigured()) return matrix;
-
-  try {
+// A matriz é lida em TODO layout do dashboard (getAccessMatrix) e de novo em
+// TODA rota de API (canAccess, que fazia a própria query). Medido: 300ms por
+// leitura, para uma tabela de 2 linhas — o banco está em outra região.
+//
+// Uma leitura só serve as duas funções. `canAccess` deixou de ir ao banco.
+//
+// Escrita invalida (saveAccessMatrix / resetAccessMatrix), então mudar uma
+// permissão na tela continua valendo na hora. Alteração feita direto no banco
+// leva até CONFIG_TTL_MS — resíduo assumido, igual ao cache de papéis.
+const matrixCache = cachedReader<AccessMatrix>(
+  "role_permissions",
+  async () => {
+    const matrix = defaultMatrix();
     const rows = await getDb().select().from(rolePermissions);
     for (const r of rows) {
       if (r.role !== "user" && r.role !== "colaborador") continue;
       if (!AREA_IDS.includes(r.area as Area)) continue;
       matrix[r.role][r.area as Area] = r.allowed;
     }
-  } catch (err) {
-    console.error("[permissions] falha ao ler a matriz — usando o default:", err);
-  }
-  return matrix;
+    return matrix;
+  },
+  () => defaultMatrix(),
+);
+
+/** Descarta o cache da matriz. Chamado por toda escrita. */
+export function invalidateAccessMatrixCache(): void {
+  matrixCache.invalidate();
+}
+
+/** Carrega a matriz para a memória no boot — ver src/instrumentation-node.ts. */
+export async function preloadAccessMatrix(): Promise<void> {
+  if (!isDbConfigured()) return;
+  await matrixCache.preload();
+}
+
+/** A matriz inteira — o que a tela de permissões desenha. */
+export async function getAccessMatrix(): Promise<AccessMatrix> {
+  if (!isDbConfigured()) return defaultMatrix();
+  // O cachedReader já cai no default e loga alto se o banco falhar — o
+  // try/catch anterior virava ruído duplicado.
+  return matrixCache.get();
 }
 
 /** A pergunta que páginas e rotas fazem. Admin passa sempre. */
 export async function canAccess(role: Role, area: Area): Promise<boolean> {
   if (role === "admin") return true;
   if (!isDbConfigured()) return DEFAULT_ACCESS[role][area];
-  try {
-    const [row] = await getDb()
-      .select({ allowed: rolePermissions.allowed })
-      .from(rolePermissions)
-      .where(
-        and(eq(rolePermissions.role, role), eq(rolePermissions.area, area)),
-      )
-      .limit(1);
-    // Linha ausente (área nova, seed incompleto) cai no default do código, que
-    // é conservador — nunca "liberado por omissão".
-    return row?.allowed ?? DEFAULT_ACCESS[role][area];
-  } catch (err) {
-    console.error(`[permissions] falha ao checar ${role}/${area}:`, err);
-    return DEFAULT_ACCESS[role][area];
-  }
+  // Sai do MESMO mapa em memória do getAccessMatrix. Antes era uma query por
+  // checagem — e toda rota de API faz uma.
+  const matrix = await matrixCache.get();
+  // Área ausente do mapa (área nova, seed incompleto) cai no default do código,
+  // que é conservador — nunca "liberado por omissão".
+  return matrix[role]?.[area] ?? DEFAULT_ACCESS[role][area];
 }
 
 /**
@@ -86,6 +102,8 @@ export async function saveAccessMatrix(
         });
     }
   }
+  // Mudar permissão na tela vale na hora, sem esperar o TTL.
+  invalidateAccessMatrixCache();
 }
 
 /** Volta à política inicial — o botão "Restaurar padrão" da tela. */

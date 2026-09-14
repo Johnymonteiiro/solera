@@ -3,9 +3,6 @@ import { requireArea } from "@/lib/dal";
 import { isRole } from "@/lib/roles";
 import { listUsers, setUserActive, setUserRole } from "@/lib/users";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 // Gestão de pessoas: papel e status da conta.
 //
 //   GET   /api/mas/users                            → { users }

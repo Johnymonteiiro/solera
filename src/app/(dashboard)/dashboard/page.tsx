@@ -33,7 +33,8 @@ export default async function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <RecentExecutionsList />
+                {/* 5 linhas: é um resumo, a lista completa é /posts. */}
+                <RecentExecutionsList maxRows={5} />
               </CardContent>
             </Card>
 

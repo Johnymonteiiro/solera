@@ -3,8 +3,12 @@ analysis/out/
 analysis/.venv/
 __pycache__/
 
-# Dados sintéticos do --demo (regeneráveis: python quality_study.py --demo)
+# Dados sintéticos do --demo (regeneráveis: python analysis/gate_study.py --demo)
 data/demo/
+
+# Avaliadores FICTÍCIOS sobre o corpus real (python analysis/simular_humanos.py).
+# Regenerável, e não pode ser confundido com coleta — fora do versionamento.
+data/simulado*/
 
 # Arquivo morto da demo antiga — pode apagar
 _arquivo-demo-antiga/

@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
+import { ThreadsProvider } from "@/components/dashboard/threads-provider";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { getRole, requireOwner } from "@/lib/dal";
 import { getAccessMatrix } from "@/lib/permissions";
@@ -26,11 +27,16 @@ export default async function DashboardLayout({
     role === "admin" ? AREA_IDS : AREA_IDS.filter((a) => matrix[role][a]);
 
   return (
+    // ThreadsProvider no layout, não na página: o sino de notificações vive na
+    // Topbar (toda página) e os outros consumidores no corpo — o layout é o
+    // único pai comum. Uma busca de /api/mas/threads para o app inteiro.
     <SidebarProvider>
-      <AppSidebar areas={areas} />
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {children}
-      </main>
+      <ThreadsProvider>
+        <AppSidebar areas={areas} />
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {children}
+        </main>
+      </ThreadsProvider>
     </SidebarProvider>
   );
 }

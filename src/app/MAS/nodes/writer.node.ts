@@ -1,8 +1,10 @@
 import { AIMessage } from "@langchain/core/messages";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import { writerAgent } from "../agents/writer.agent";
+import { conformanceFailures } from "../lib/rubric";
 import { LINKEDIN_MAX_CHARS, POST_SIZE_RANGES } from "../constants";
 import { composeSystemPrompt, getAgentConfig } from "../lib/configStore";
+import { DEFAULT_LANGUAGE } from "../lib/language";
 import { DraftTrigger, recordDraftVersion } from "../lib/studyRecorder";
 import { emitEvent } from "../lib/threadStore";
 import { writerPrompt } from "../prompts/writer.prompt";
@@ -24,21 +26,25 @@ export async function writerNode(
 ): Promise<Partial<State>> {
   const { topic, insights, draft: previousDraft, humanFeedback, judgement } =
     state;
+  // Fallback defensivo, mesmo motivo do postSize: checkpoint antigo pode não
+  // ter `language` (o campo existia, mas nenhum nó lia).
+  const language = state.language ?? DEFAULT_LANGUAGE;
   // Fallback defensivo: graphs antigos no cache podem não ter postSize.
   const postSize = state.postSize ?? "medium";
   const targetRange = POST_SIZE_RANGES[postSize];
 
   // Detecta tipo do retry:
-  // - primeira execução: judgement vazio (score 0), sem humanFeedback
+  // - primeira execução: judgement vazio (overall 0), sem humanFeedback
   // - mandato humano ativo: humanFeedback.decision === "reject" com comments
-  // - retry do judge: judgement.score > 0 (rodou pelo menos uma vez)
+  // - retry do judge: judgement.overall > 0 (rodou pelo menos uma vez)
   // Mandato e judge retry coexistem: o mandato persiste através do loop
   // até o usuário agir de novo (approve/stop/restart_research).
   const hasMandate =
     humanFeedback?.decision === "reject" && !!humanFeedback?.comments;
   const isFreshHumanRevision =
     hasMandate && humanFeedback!.timestamp !== state.lastAppliedFeedbackAt;
-  const isJudgeRetry = judgement.score > 0;
+  // 0 está fora da escala 1–5 do instrumento: é sentinela, não nota.
+  const isJudgeRetry = judgement.overall > 0;
   // HUMAN OVERRIDE no prompt sempre que o mandato existe — não só na primeira
   // passada. Sem isso, o writer "esquece" a instrução nos judge retries e
   // o judge vence (e o loop nunca acumula até MAX_JUDGE_RETRIES).
@@ -94,7 +100,25 @@ export async function writerNode(
     const suggestions = judgement.suggestions.length
       ? judgement.suggestions.map((s) => `- ${s}`).join("\n")
       : "";
-    previousDraftBlock = `\n\nDRAFT ANTERIOR (score do judge: ${judgement.score}/10 — corrija):\n"""\n${previousDraft}\n"""\n\nPROBLEMAS APONTADOS PELO JUDGE:\n${issues}${suggestions ? `\n\nSUGESTÕES:\n${suggestions}` : ""}\n\nReescreva mantendo o que estava bom e corrigindo os problemas. ATENÇÃO ESPECIAL ao range de chars do tamanho ${targetRange.label} (${targetRange.min}-${targetRange.max}).`;
+    // As dimensões vão junto do texto: "overall 2/5" sozinho não diz ao writer
+    // O QUE corrigir, e o diagnóstico específico está nos issues.
+    const notas =
+      `clareza ${judgement.clarity}/5, relevância ${judgement.relevance}/5, ` +
+      `adequação profissional ${judgement.professional}/5, engajamento ${judgement.engagement}/5`;
+    // Conformidade é a outra razão pela qual um draft volta — e pode voltar com
+    // ACCEPT nas quatro dimensões. Sem esta lista o writer receberia "reescreva"
+    // sem saber o que falhou, e o número do tamanho é o que ele precisa mirar.
+    const conformidade = conformanceFailures(judgement);
+    const conformidadeBloco = conformidade.length
+      ? `\n\nFALHAS DE CONFORMIDADE (obrigatório corrigir):\n${conformidade
+          .map((c) =>
+            c === "fora da faixa de caracteres"
+              ? `- ${previousDraft.length} chars, fora do alvo ${targetRange.min}-${targetRange.max} — ajuste sem perder o conteúdo central`
+              : `- ${c}`,
+          )
+          .join("\n")}`
+      : "";
+    previousDraftBlock = `\n\nDRAFT ANTERIOR (${judgement.decision} do judge — geral ${judgement.overall}/5; ${notas}):\n"""\n${previousDraft}\n"""\n\nPROBLEMAS APONTADOS PELO JUDGE:\n${issues}${suggestions ? `\n\nSUGESTÕES:\n${suggestions}` : ""}${conformidadeBloco}\n\nReescreva mantendo o que estava bom e corrigindo os problemas apontados. Não refaça o texto do zero: o que o judge não criticou deve sobreviver. Alvo de tamanho ${targetRange.label} (${targetRange.min}-${targetRange.max} chars).`;
   }
 
   const feedbackBlock =
@@ -104,6 +128,7 @@ export async function writerNode(
 
   let prompts = writerPrompt({
     topic,
+    language,
     previousDraftBlock,
     feedbackBlock,
     insightsList,
@@ -117,7 +142,14 @@ export async function writerNode(
     prompts,
     "prepend",
   );
-  const { response } = await writerAgent({ prompts, insightsList });
+  // Condição experimental do corpus: o modelo vem do STATE, não da config
+  // global. Trocar `agent_configs` entre execuções seria config mutável em
+  // runtime — o hazard que já corrompeu as notas do Judge uma vez.
+  const { response } = await writerAgent({
+    prompts,
+    insightsList,
+    modelOverride: state.writerModel,
+  });
   let draft = extractLastAiContent(response.messages);
 
   if (draft.length > LINKEDIN_MAX_CHARS) {
@@ -128,7 +160,7 @@ export async function writerNode(
   }
 
   console.log(
-    `[writer] draft=${draft.length} chars (size=${postSize}, alvo=${targetRange.min}-${targetRange.max}, humanRevision=${isHumanRevision}, judgeRetry=${isJudgeRetry})`,
+    `[writer] draft=${draft.length} chars (size=${postSize}, lang=${language}, alvo=${targetRange.min}-${targetRange.max}, humanRevision=${isHumanRevision}, judgeRetry=${isJudgeRetry})`,
   );
 
   // Registro de pesquisa: grava ESTA versão antes que a próxima passada a

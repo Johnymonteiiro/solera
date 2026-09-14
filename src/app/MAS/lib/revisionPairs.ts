@@ -140,6 +140,7 @@ export interface RunOverview {
   versions: number;
   judgeRetries: number;
   revisionCount: number;
+  /** Holística (1–5) da PRIMEIRA versão. Ver ressalva 2: descritivo. */
   firstScore: number | null;
   finalScore: number | null;
   exhausted: boolean;
@@ -224,7 +225,7 @@ function exclusionFor(
 function outcomeFor(
   run: RunMetaRecord,
   versions: VersionRecord[],
-  firstScore: number | null,
+  first: JudgeResult | null,
 ): RunOutcome {
   if (run.excludedAt) return "descartado";
   if (!run.judgeLoop) return "fora_do_desenho";
@@ -239,8 +240,10 @@ function outcomeFor(
   if (run.judgeRetries > 0) return "historico_incompleto";
   // Uma versão só e nenhuma reescrita: aprovada de primeira apenas se passou do
   // gate. Abaixo do gate significa que a execução parou antes de o writer
-  // reescrever — não é aprovação.
-  return firstScore != null && firstScore >= 7 ? "first_pass" : "interrompido";
+  // reescrever — não é aprovação. O gate é a decisão pré-registrada da rubrica
+  // (lib/rubric.ts); para as linhas da v1, `toJudgeResult` reconstrói a decisão
+  // pela regra que valia na época.
+  return first?.decision === "ACCEPT" ? "first_pass" : "interrompido";
 }
 
 export function selectRevisionPairs(
@@ -258,7 +261,8 @@ export function selectRevisionPairs(
 
   for (const run of runs) {
     const versions = histories.get(run.threadId) ?? [];
-    const firstScore = versions[0]?.judgement?.score ?? null;
+    const first = versions[0]?.judgement ?? null;
+    const firstScore = first?.overall ?? null;
     const lastJudged = [...versions].reverse().find((v) => v.judgement);
     // Segmento PURO do loop do judge: da v1 até a última reescrita dele, antes
     // de qualquer revisão humana. Depois que o humano entra, o texto deixa de
@@ -285,9 +289,9 @@ export function selectRevisionPairs(
       judgeRetries: run.judgeRetries,
       revisionCount: run.revisionCount,
       firstScore,
-      finalScore: lastJudged?.judgement?.score ?? null,
+      finalScore: lastJudged?.judgement?.overall ?? null,
       exhausted,
-      outcome: outcomeFor(run, versions, firstScore),
+      outcome: outcomeFor(run, versions, first),
       excludedAt: run.excludedAt,
       excludedReason: run.excludedReason,
     });
@@ -318,7 +322,7 @@ export function selectRevisionPairs(
         cause: "judge_retry",
         deltaScore:
           before.judgement && after.judgement
-            ? after.judgement.score - before.judgement.score
+            ? after.judgement.overall - before.judgement.overall
             : null,
         deltaChars: after.charCount - before.charCount,
         exhausted,
@@ -351,7 +355,7 @@ export function selectRevisionPairs(
         cause: after.trigger,
         deltaScore:
           before.judgement && after.judgement
-            ? after.judgement.score - before.judgement.score
+            ? after.judgement.overall - before.judgement.overall
             : null,
         deltaChars: after.charCount - before.charCount,
         exhausted,

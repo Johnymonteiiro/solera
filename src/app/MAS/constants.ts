@@ -9,6 +9,11 @@ export const MAX_JUDGE_RETRIES = 3;
 // pra dar headroom enquanto o circuit breaker do judge atua.
 export const GRAPH_RECURSION_LIMIT = 60;
 export const LINKEDIN_MAX_CHARS = 3000;
+// Teto de UMA chamada ao provedor de busca. Sem isto o researcher espera para
+// sempre: nem o fetch do Brave nem o SDK do Tavily têm timeout próprio, e uma
+// conexão pendurada trava a execução inteira em `researching`, sem erro e sem
+// fim — foi o que aconteceu em 2026-08-29.
+export const SEARCH_TIMEOUT_MS = 45_000;
 export const SSE_KEEPALIVE_MS = 15_000;
 
 // Ranges de comprimento por tamanho de post.
