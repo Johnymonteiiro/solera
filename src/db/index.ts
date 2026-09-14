@@ -36,9 +36,29 @@ export function getDb() {
 
   // prepare:false é obrigatório no pooler em modo transaction (pgbouncer):
   // prepared statements não sobrevivem à troca de conexão do pool.
+  //
+  // Os timeouts NÃO são enfeite. O banco está em us-west-2 e cada query custa
+  // ~300ms de RTT só de rede; quando o pooler demora a devolver um slot, a
+  // chamada fica esperando. Sem teto, "esperando" vira "para sempre": foi assim
+  // que o pipeline travou no researcher e um `select` por chave primária numa
+  // tabela de UMA linha estourou o statement_timeout de 2min do servidor.
+  // Falhar em segundos é recuperável (os escritores do estudo são fail-soft, a
+  // DAL tenta de novo); pendurar não é.
   const client =
     globalThis.__soleraSql ??
-    (globalThis.__soleraSql = postgres(url, { prepare: false, max: 5 }));
+    (globalThis.__soleraSql = postgres(url, {
+      prepare: false,
+      max: 5,
+      // Conexão que não estabelece em 10s não vai estabelecer.
+      connect_timeout: 10,
+      // Devolve conexão ociosa ao pooler em vez de segurar o slot para sempre.
+      // Com Supavisor em modo transaction, slot preso por processo morto é o
+      // que faz o processo seguinte esperar sem erro nenhum.
+      idle_timeout: 20,
+      // Recicla conexão velha: evita socket meio-morto que só aparece na hora
+      // do uso (o servidor ou um NAT no caminho derruba sem avisar).
+      max_lifetime: 60 * 30,
+    }));
 
   globalThis.__soleraDb = buildDb(client);
   return globalThis.__soleraDb;

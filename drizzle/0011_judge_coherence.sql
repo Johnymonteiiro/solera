@@ -1,0 +1,28 @@
+-- Coerência do juiz: a marcação das issues e o registro de quando a nota
+-- precisou ser corrigida em código.
+--
+-- Por que existe: o Judge aprovava posts que ele mesmo descrevia como
+-- reprovados. Ele escrevia "abertura sensacionalista" — palavra que está na
+-- âncora 1 de `professional` — e pontuava 4; escrevia "soa como um compêndio de
+-- dicas padrão", que é a âncora 3, e pontuava 4. Diagnosticava num nível e
+-- pontuava noutro, e nada no dado registrava isso.
+--
+-- Pedir a checagem no prompt não resolveu: medido em 2026-09-08 sobre 5 posts do
+-- corpus, moveu UMA dimensão em um ponto e não mudou nenhuma decisão. Por isso a
+-- marcação virou contrato de saída (`findings`) e a verificação virou código.
+--
+-- `findings` é a mesma lista de `issues`, com dois campos a mais por item: a
+-- dimensão a que o problema pertence e o ponto da escala que ele descreve.
+-- `issues` continua existindo com o texto puro — é o que o writer, a UI e os
+-- CSVs leem, e o que as linhas antigas têm.
+--
+-- `coherence_clamped` marca a avaliação em que o juiz insistiu na contradição
+-- mesmo depois da retentativa e o código baixou a nota para o ponto que ele
+-- próprio citou. A FREQUÊNCIA disso é resultado do estudo, não detalhe de
+-- implementação: é o tipo de falha que métrica agregada de concordância esconde.
+--
+-- NULL / false nas linhas anteriores a esta data — elas não foram avaliadas sob
+-- este contrato, e preencher retroativamente seria inventar dado. Quem separa as
+-- coletas continua sendo `rubric_hash` + `rubric_version`.
+ALTER TABLE "judgements" ADD COLUMN IF NOT EXISTS "findings" jsonb;
+ALTER TABLE "judgements" ADD COLUMN IF NOT EXISTS "coherence_clamped" boolean NOT NULL DEFAULT false;

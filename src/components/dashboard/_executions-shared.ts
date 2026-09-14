@@ -1,5 +1,5 @@
 // Helpers compartilhados entre RecentExecutionsList (compacto) e
-// ExecutionsManagementTable (gestão) — labels, tones, avatar, formatters.
+// PostsView (gestão) — labels, tones, avatar, formatters.
 
 import { AgentStatus } from "@/app/MAS/types/types";
 

@@ -7,9 +7,6 @@ import {
 } from "@/app/MAS/lib/configStore";
 import { requireAdmin, requireArea } from "@/lib/dal";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   // Ler a config dos agentes é a área `agentes`; GRAVAR continua sendo admin.
   const auth = await requireArea("agentes");
@@ -45,6 +42,10 @@ export async function PUT(req: NextRequest) {
         typeof patch.enabled === "boolean"
           ? patch.enabled
           : current[id].enabled,
+      // trim() e não a string crua: um espaço acidental no campo viraria um
+      // nome de modelo inválido e derrubaria o agente no meio da execução.
+      model:
+        typeof patch.model === "string" ? patch.model.trim() : current[id].model,
       role: typeof patch.role === "string" ? patch.role : current[id].role,
       promptOverride:
         typeof patch.promptOverride === "string"

@@ -7,6 +7,7 @@ import { PipelineVertical } from "@/components/dashboard/pipeline-vertical";
 import { ThreadArtifacts } from "@/components/dashboard/pipeline-agents";
 import { Play } from "lucide-react";
 import * as React from "react";
+import { useThreads } from "./threads-provider";
 
 const POLL_MS = 5_000;
 const TERMINAL: AgentStatus[] = ["done", "stopped", "error"];
@@ -39,37 +40,20 @@ export function DashboardPipelineCard() {
   );
   const esRef = React.useRef<EventSource | null>(null);
 
-  const refreshThreads = React.useCallback(async () => {
-    try {
-      const res = await fetch("/api/mas/threads", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = (await res.json()) as { threads: ThreadSummary[] };
-      const running = data.threads.find((t) => IN_PROGRESS.includes(t.status));
-      const next = running ?? data.threads[0] ?? null;
-      setThread((prev) => {
-        if (!next) return null;
-        if (prev?.threadId === next.threadId) return { ...prev, ...next };
-        return next;
-      });
-    } catch {
-      // ignora erro de rede transiente
-    }
-  }, []);
+  // A lista vem do ThreadsProvider — este componente tinha o próprio fetch e
+  // o próprio setInterval de 5s, replicando o que outros dois já faziam.
+  // A escolha de QUAL execução mostrar continua aqui: é regra desta tela.
+  const { threads } = useThreads();
 
   React.useEffect(() => {
-    refreshThreads();
-    const interval = setInterval(refreshThreads, POLL_MS);
-    const handler = () => {
-      void refreshThreads();
-    };
-    window.addEventListener("mas:thread-created", handler);
-    window.addEventListener("mas:refresh", handler);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("mas:thread-created", handler);
-      window.removeEventListener("mas:refresh", handler);
-    };
-  }, [refreshThreads]);
+    const running = threads.find((t) => IN_PROGRESS.includes(t.status));
+    const next = running ?? threads[0] ?? null;
+    setThread((prev) => {
+      if (!next) return null;
+      if (prev?.threadId === next.threadId) return { ...prev, ...next };
+      return next;
+    });
+  }, [threads]);
 
   // Busca artefatos sempre que o status do thread mudar — necessário para o
   // StuckToast saber stoppedReason, judgeRetries e judgement.score.
@@ -98,6 +82,7 @@ export function DashboardPipelineCard() {
           stoppedReason: data.stoppedReason ?? null,
           postSize: data.postSize ?? "medium",
           finalPostUrl: data.finalPostUrl ?? null,
+          versions: data.versions ?? [],
         });
       } catch {
         // ignora — artifacts permanece como estava

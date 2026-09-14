@@ -6,9 +6,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TableRowsSkeleton } from "@/components/dashboard/skeletons";
+import { Button } from "@/components/ui/button";
 import { ROLES, ROLE_DESCRIPTION, ROLE_LABEL, type Role } from "@/lib/roles";
 import { Check, ChevronDown, Search } from "lucide-react";
 import * as React from "react";
+
+/** Mesmo tamanho de página das outras tabelas do app (posts, execuções). */
+const PAGE_SIZE = 8;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // A tabela de pessoas, usada em dois lugares: dentro da aba Permissões (foco em
@@ -188,6 +193,7 @@ export function UsersTable({
   onActive?: (linkedinId: string, active: boolean) => void;
 }) {
   const [busca, setBusca] = React.useState("");
+  const [page, setPage] = React.useState(1);
 
   const lista = users ?? [];
   const papelDe = (u: AppUser): Role => roleEdits[u.linkedinId] ?? u.role;
@@ -210,6 +216,17 @@ export function UsersTable({
     ? "grid-cols-[1.6fr_0.7fr_1fr_70px_104px_180px]"
     : "grid-cols-[1.6fr_0.9fr_1fr_180px]";
 
+  // A página vive aqui e não no host: quem pagina é quem conhece a lista já
+  // filtrada. `safePage` protege o caso de a busca encolher o resultado com o
+  // usuário numa página que deixou de existir — sem ele a tabela fica vazia
+  // sem explicação nenhuma.
+  const totalPages = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = filtrados.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
+
   return (
     <>
       <div className="flex items-center justify-between gap-4 border-b border-[var(--border-subtle)] p-4">
@@ -226,7 +243,10 @@ export function UsersTable({
           />
           <input
             value={busca}
-            onChange={(e) => setBusca(e.target.value)}
+            onChange={(e) => {
+              setBusca(e.target.value);
+              setPage(1);
+            }}
             placeholder="Buscar por nome ou e-mail"
             className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-input)] py-2 pl-8 pr-3 text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent-purple)] focus:outline-none"
           />
@@ -247,9 +267,11 @@ export function UsersTable({
           </div>
 
           {users === null ? (
-            <div className="px-5 py-8 text-center text-[12px] text-[var(--text-muted)]">
-              Carregando usuários...
-            </div>
+            <TableRowsSkeleton
+              rows={PAGE_SIZE}
+              cols={showActivity ? 6 : 4}
+              grid={grid}
+            />
           ) : filtrados.length === 0 ? (
             <div className="px-5 py-8 text-center text-[12px] text-[var(--text-muted)]">
               {lista.length === 0
@@ -257,7 +279,7 @@ export function UsersTable({
                 : "Nenhuma pessoa encontrada."}
             </div>
           ) : (
-            filtrados.map((u) => {
+            pageRows.map((u) => {
               const papel = papelDe(u);
               const travado = ultimoAdmin(u);
               const alterado = roleEdits[u.linkedinId] != null;
@@ -359,6 +381,33 @@ export function UsersTable({
           )}
         </div>
       </div>
+
+      {filtrados.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between border-t border-[var(--border-subtle)] px-5 py-3">
+          <span className="text-[11px] text-[var(--text-muted)]">
+            {filtrados.length} pessoa{filtrados.length === 1 ? "" : "s"} · página{" "}
+            {safePage}/{totalPages}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Próxima
+            </Button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

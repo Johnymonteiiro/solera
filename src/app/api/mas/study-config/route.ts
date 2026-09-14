@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSettings, saveSettings } from "@/app/MAS/lib/settingsStore";
 import { getOwnerId, requireAdmin, unauthorized } from "@/lib/dal";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 // Config do estudo: link do Google Form de avaliação humana.
 export async function GET() {
   const ownerId = await getOwnerId();

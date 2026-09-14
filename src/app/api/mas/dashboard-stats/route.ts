@@ -4,9 +4,6 @@ import { listThreads } from "@/app/MAS/lib/threadStore";
 import { AgentStatus } from "@/app/MAS/types/types";
 import { requireArea } from "@/lib/dal";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 const COMPLETED_STATUSES: AgentStatus[] = ["done", "stopped", "error"];
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 

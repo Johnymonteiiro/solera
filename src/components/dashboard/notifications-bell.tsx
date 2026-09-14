@@ -7,6 +7,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useThreads } from "./threads-provider";
 import { Bell } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
@@ -14,16 +15,7 @@ import { STATUS_LABEL, formatRelative } from "./_executions-shared";
 
 // Status "notáveis" que viram notificação (substituem os toasts do sonner).
 const NOTABLE: AgentStatus[] = ["awaiting_review", "done", "stopped", "error"];
-const POLL_MS = 5000;
 const SEEN_KEY = "mas:notifications:seen";
-
-interface ThreadRow {
-  threadId: string;
-  topic: string;
-  status: AgentStatus;
-  createdAt: string;
-  completedAt: string | null;
-}
 
 interface Notification {
   id: string; // `${threadId}:${status}`
@@ -58,12 +50,12 @@ export function NotificationsBell() {
     setSeen(loadSeen());
   }, []);
 
-  const load = React.useCallback(async () => {
-    try {
-      const res = await fetch("/api/mas/threads", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = (await res.json()) as { threads: ThreadRow[] };
-      const next = data.threads
+  // Lista vem do ThreadsProvider — antes este componente tinha o próprio
+  // fetch + setInterval de 5s, e ele fica na Topbar, ou seja, em toda página.
+  const { threads } = useThreads();
+
+  React.useEffect(() => {
+    const next = threads
         .filter((t) => NOTABLE.includes(t.status))
         .map<Notification>((t) => ({
           id: `${t.threadId}:${t.status}`,
@@ -74,24 +66,8 @@ export function NotificationsBell() {
         }))
         .sort((a, b) => b.at.localeCompare(a.at))
         .slice(0, 20);
-      setItems(next);
-    } catch {
-      // mantém valor anterior
-    }
-  }, []);
-
-  React.useEffect(() => {
-    load();
-    const interval = setInterval(load, POLL_MS);
-    const handler = () => void load();
-    window.addEventListener("mas:refresh", handler);
-    window.addEventListener("mas:thread-created", handler);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("mas:refresh", handler);
-      window.removeEventListener("mas:thread-created", handler);
-    };
-  }, [load]);
+    setItems(next);
+  }, [threads]);
 
   const unread = items.filter((i) => !seen.has(i.id));
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { TableRowsSkeleton } from "@/components/dashboard/skeletons";
 import { AppUser, UsersTable } from "@/components/dashboard/users-table";
 import { AREAS, ROLES, ROLE_DESCRIPTION, ROLE_LABEL, type Area, type Role } from "@/lib/roles";
 import { Info, RotateCcw } from "lucide-react";
@@ -127,9 +128,12 @@ export function ConfigPermissoes({
             </div>
 
             {matrix === null ? (
-              <div className="px-5 py-8 text-center text-[12px] text-[var(--text-muted)]">
-                Carregando matriz...
-              </div>
+              <TableRowsSkeleton
+                rows={AREAS.length}
+                cols={4}
+                avatar={false}
+                grid="grid-cols-[1fr_120px_120px_120px]"
+              />
             ) : (
               AREAS.map((a) => (
                 <div

@@ -34,6 +34,7 @@ function run(
     topicNorm: topic.toLowerCase(),
     status: "awaiting_review",
     judgeLoop: true,
+    writerModel: "",
     revisionCount: 0,
     judgeRetries,
     createdAt,
@@ -41,7 +42,7 @@ function run(
   };
 }
 
-/** n versões, todas com nota (score sobe 1 por versão) e trigger judge_retry. */
+/** n versões, todas com nota (overall sobe 1 por versão) e trigger judge_retry. */
 function history(threadId: string, n: number): VersionRecord[] {
   return Array.from({ length: n }, (_, i) => ({
     id: `${threadId}-v${i + 1}`,
@@ -52,15 +53,17 @@ function history(threadId: string, n: number): VersionRecord[] {
     trigger: i === 0 ? ("initial" as const) : ("judge_retry" as const),
     createdAt: `2026-08-0${i + 1}T00:00:00.000Z`,
     judgement: {
-      score: 4 + i,
-      hookQuality: 5,
-      originality: 5,
-      scannability: 5,
-      ctaQuality: 5,
-      lengthAdequate: true,
-      toneLinkedIn: true,
+      clarity: 3,
+      relevance: 3,
+      professional: 3,
+      engagement: 3,
+      // Sobe 1 por versão a partir de 2 — a v1 fica abaixo do gate e as
+      // seguintes passam, que é o formato que a regra de amostragem exercita.
+      overall: Math.min(2 + i, 5),
+      decision: i === 0 ? ("REJECT" as const) : ("ACCEPT" as const),
       hasEngagementBait: false,
       hasExternalLinkInBody: false,
+      lengthOk: true,
       issues: [],
       suggestions: [],
     },
@@ -68,6 +71,7 @@ function history(threadId: string, n: number): VersionRecord[] {
       model: "gpt-4o",
       temperature: 0.1,
       rubricHash: "abc123",
+      rubricVersion: "v2",
       judgedAt: "2026-08-01T00:00:00.000Z",
     },
   }));
@@ -207,8 +211,22 @@ console.log("\n5. aprovado de primeira");
     run("rev", "tema rev", "2026-08-02T00:00:00.000Z", 1),
   ];
   const histories = new Map([
-    // score 8 na v1, sem reescrita: passou do gate
-    ["ok", history("ok", 1).map((v) => ({ ...v, judgement: { ...v.judgement!, score: 8 } }))],
+    // ACCEPT na v1, sem reescrita: passou do gate de primeira
+    [
+      "ok",
+      history("ok", 1).map((v) => ({
+        ...v,
+        judgement: {
+          ...v.judgement!,
+          clarity: 4,
+          relevance: 4,
+          professional: 4,
+          engagement: 4,
+          overall: 4,
+          decision: "ACCEPT" as const,
+        },
+      })),
+    ],
     ["rev", history("rev", 2)],
   ]);
   const { stats } = selectRevisionPairs(runs, histories);

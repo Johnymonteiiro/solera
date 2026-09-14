@@ -90,6 +90,8 @@ export async function createThread(
   topic: string,
   postSize: PostSize = "small",
   judgeLoop: boolean = true,
+  /** Condição do corpus: modelo que escreve. Vazio = config global. */
+  writerModel: string = "",
 ): Promise<boolean> {
   getLive(threadId);
   const [row] = await getDb()
@@ -101,6 +103,7 @@ export async function createThread(
       topicNorm: normalizeTopic(topic),
       postSize,
       judgeLoop,
+      writerModel,
       status: "idle",
       createdAt: new Date(),
     })
@@ -109,7 +112,13 @@ export async function createThread(
       // `ownerId` fica fora do set de propósito: dono não se reatribui por
       // reexecução. E o setWhere impede que um threadId adivinhado reescreva o
       // topic de outro — sem ele, o conflito atualizaria a linha alheia.
-      set: { topic, topicNorm: normalizeTopic(topic), postSize, judgeLoop },
+      set: {
+        topic,
+        topicNorm: normalizeTopic(topic),
+        postSize,
+        judgeLoop,
+        writerModel,
+      },
       setWhere: eq(runs.ownerId, ownerId),
     })
     .returning({ threadId: runs.threadId });
@@ -206,7 +215,18 @@ function toSummary(
 }
 
 // Lista as execuções DO DONO, mais recentes primeiro.
-export async function listThreads(ownerId: string): Promise<ThreadSummary[]> {
+/**
+ * Execuções do dono, da mais recente para a mais antiga.
+ *
+ * `limit` existe porque esta query é a mais cara do app — DISTINCT ON sobre
+ * draft_versions mais dois joins — e roda a cada 5s pelo ThreadsProvider. Sem
+ * teto, o custo cresce com o histórico para alimentar telas que mostram 5
+ * linhas. Omitir devolve tudo (é o que os exports e scripts do estudo querem).
+ */
+export async function listThreads(
+  ownerId: string,
+  limit?: number,
+): Promise<ThreadSummary[]> {
   const db = getDb();
   // Uma query só: para cada run, a ÚLTIMA versão e a nota dela. DISTINCT ON é
   // do Postgres — evita o N+1 que o loop por thread daria.
@@ -222,7 +242,7 @@ export async function listThreads(ownerId: string): Promise<ThreadSummary[]> {
     .orderBy(draftVersions.threadId, desc(draftVersions.version))
     .as("last_version");
 
-  const rows = await db
+  const base = db
     .select({ run: runs, content: lastVersion.content, judgement: judgements })
     .from(runs)
     .leftJoin(lastVersion, eq(runs.threadId, lastVersion.threadId))
@@ -230,6 +250,11 @@ export async function listThreads(ownerId: string): Promise<ThreadSummary[]> {
     // Filtrar em runs basta: versões e notas pendem daqui por FK.
     .where(eq(runs.ownerId, ownerId))
     .orderBy(desc(runs.createdAt));
+
+  // O LIMIT corta em `runs` porque o DISTINCT ON já reduziu draft_versions a uma
+  // linha por thread — não há risco de o teto comer versões de uma execução.
+  const rows =
+    limit != null && limit > 0 ? await base.limit(limit) : await base;
 
   return rows.map((r) =>
     toSummary(r.run, r.content ? { content: r.content } : undefined, r.judgement ?? undefined),

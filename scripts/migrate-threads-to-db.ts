@@ -136,6 +136,9 @@ async function main() {
         model: t.judgeMeta.model ?? "desconhecido",
         temperature: Number(t.judgeMeta.temperature ?? 0),
         rubricHash: t.judgeMeta.rubricHash,
+        // Explícito, não pelo DEFAULT da coluna: o JSON de origem é da rubrica
+        // v1 (score 0–10) e a análise separa as coletas por este campo.
+        rubricVersion: "v1",
         judgedAt: t.judgeMeta.judgedAt ? new Date(t.judgeMeta.judgedAt) : createdAt,
       })
       .onConflictDoNothing({ target: judgements.draftVersionId });

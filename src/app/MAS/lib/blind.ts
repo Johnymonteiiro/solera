@@ -50,3 +50,5 @@ export function seededShuffle<T>(items: T[], seed: number): T[] {
 export const SEED_CONDITION_SAMPLE = 0x50123a;
 /** Seed do desenho de pares antes/depois. Não reutilizar. */
 export const SEED_REVISION_PAIRS = 0x7a31c5;
+/** Seed do corpus do gate (rubrica v2, 1 post por execução). Não reutilizar. */
+export const SEED_CORPUS = 0x2c9f04;

@@ -1,4 +1,13 @@
 """
+SUPERADO — analisa o desenho v1 (critérios 0–10, braço com-judge × sem-judge).
+Esse desenho não existe mais; ver ../ACHADOS.md §6. O pipeline vigente, da
+rubrica v2 e do Evaluation-Process.md, é `gate_study.py`.
+
+Fica no repositório porque a coleta de 2026-06 (study/_arquivo-demo-antiga/)
+foi feita sob ele e é o único jeito de reler aqueles CSVs. Não rode contra
+dado novo: as colunas que ele espera no formulário (`A_overall`, `A_hook`…)
+não são mais as que o Forms produz.
+
 Análise do estudo "Agent-as-judge vs avaliação humana" (Solera MAS).
 
 Responde:

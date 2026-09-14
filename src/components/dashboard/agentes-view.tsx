@@ -1,5 +1,6 @@
 "use client";
 
+import { PanelsSkeleton } from "@/components/dashboard/skeletons";
 import { AGENTS } from "@/components/dashboard/pipeline-agents";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,8 @@ import { toast } from "sonner";
 // Espelha o shape de AgentConfigMap sem importar o store (que usa node:fs).
 interface AgentConfig {
   enabled: boolean;
+  /** Vazio = herda LLM_MODEL de /configuracoes. */
+  model: string;
   role: string;
   promptOverride: string;
 }
@@ -93,11 +96,7 @@ export function AgentesView() {
   }
 
   if (!config) {
-    return (
-      <div className="py-20 text-center text-[13px] text-[var(--text-muted)]">
-        Carregando agentes...
-      </div>
-    );
+    return <PanelsSkeleton cards={6} className="mx-auto w-full max-w-4xl" />;
   }
 
   return (
@@ -197,6 +196,27 @@ export function AgentesView() {
                   {DISABLE_NOTE[id]}
                 </div>
               )}
+
+              {/* Modelo */}
+              <label className="mt-3 flex flex-col gap-1">
+                <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+                  Modelo
+                  {id === "judge" && cfg.model.trim() && (
+                    <span
+                      className="rounded bg-[var(--accent-purple-dim)] px-1.5 py-0.5 text-[9px] font-medium normal-case tracking-normal text-[var(--accent-purple)]"
+                      title="O Judge roda em modelo próprio para não avaliar texto do próprio modelo (viés de auto-preferência). Trocar obriga a re-pontuar o corpus."
+                    >
+                      independente do writer
+                    </span>
+                  )}
+                </span>
+                <input
+                  value={cfg.model}
+                  onChange={(e) => patch(id, { model: e.target.value })}
+                  placeholder="herda LLM_MODEL"
+                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3 py-2 font-mono text-[12px] text-[var(--text-primary)] transition-colors focus:border-[var(--accent-purple)] focus:outline-none"
+                />
+              </label>
 
               {/* Papel */}
               <label className="mt-3 flex flex-col gap-1">
