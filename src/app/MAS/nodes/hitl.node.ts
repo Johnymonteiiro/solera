@@ -3,7 +3,7 @@ import { MAX_JUDGE_RETRIES } from "../constants";
 import { updateRunProgress } from "../lib/studyRecorder";
 import { emitEvent } from "../lib/threadStore";
 import { State } from "../states/states";
-import { HumanDecision, HumanFeedback } from "../types/types";
+import { HumanDecision, HumanFeedback, JudgeResult } from "../types/types";
 
 interface ResumePayload {
   decision: HumanDecision;
@@ -11,16 +11,18 @@ interface ResumePayload {
   timestamp?: string;
 }
 
-const EMPTY_CRITIQUE = {
-  score: 0,
-  hookQuality: 0,
-  originality: 0,
-  scannability: 0,
-  ctaQuality: 0,
-  lengthAdequate: false,
-  toneLinkedIn: false,
+// Mesma sentinela do default do state (states.ts): overall=0 está fora da
+// escala 1–5, então "já foi avaliado" continua sendo um teste seguro.
+const EMPTY_CRITIQUE: JudgeResult = {
+  clarity: 0,
+  relevance: 0,
+  professional: 0,
+  engagement: 0,
+  overall: 0,
+  decision: "REJECT",
   hasEngagementBait: false,
   hasExternalLinkInBody: false,
+  lengthOk: false,
   issues: [],
   suggestions: [],
 };

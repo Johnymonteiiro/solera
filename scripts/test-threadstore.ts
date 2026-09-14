@@ -10,7 +10,7 @@ async function main() {
     console.log(
       ` ${t.threadId.slice(0, 10)} | ${t.judgeLoop ? "com" : "sem"} | ${t.status}` +
         ` | draft ${t.draft ? t.draft.length + "ch" : "null"}` +
-        ` | score ${t.judgement?.score ?? "-"}` +
+        ` | ${t.judgement?.decision ?? "-"} ${t.judgement?.overall ?? "-"}/5` +
         ` | rubric ${t.judgeMeta?.rubricHash ?? "-"}`,
     );
   }
@@ -23,7 +23,7 @@ async function main() {
     const g = await getThread(ownerId, one.threadId);
     console.log(
       `\ngetThread(${one.threadId.slice(0, 10)}): draft ${g?.draft?.length}ch, ` +
-        `score ${g?.judgement?.score}, retries ${g?.judgeRetries}`,
+        `overall ${g?.judgement?.overall}/5, retries ${g?.judgeRetries}`,
     );
   }
   console.log(`\nlistPublishedPosts(): ${(await listPublishedPosts(ownerId)).length}`);

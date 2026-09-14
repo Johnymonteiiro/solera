@@ -63,6 +63,7 @@ export function PostDetail({ threadId }: { threadId: string }) {
           stoppedReason: s.stoppedReason ?? null,
           postSize: s.postSize ?? "medium",
           finalPostUrl: s.finalPostUrl ?? null,
+          versions: s.versions ?? [],
         });
         setStatus(s.status ?? "idle");
       }

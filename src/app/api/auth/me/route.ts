@@ -2,9 +2,6 @@ import { NextResponse } from "next/server";
 import { getRole } from "@/lib/dal";
 import { getSession } from "@/lib/sessions";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 /**
  * Identidade e papel do usuário logado.
  *

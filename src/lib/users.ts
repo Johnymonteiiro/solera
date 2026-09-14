@@ -1,7 +1,54 @@
 import "server-only";
 import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { cachedReader } from "@/app/MAS/lib/configCache";
 import { getDb, isDbConfigured, runs, users } from "@/db";
 import { DEFAULT_ROLE, Role, toRole } from "./roles";
+
+// ─── Cache de papel/status ───────────────────────────────────────────────────
+//
+// `getUserAuth` é consultada a CADA requisição — pela DAL nas páginas e de novo
+// em toda rota de API. Medido: 631ms por chamada, para ler UMA linha, porque o
+// banco está em outra região. Era o custo fixo mais caro da aplicação inteira.
+//
+// A tabela toda vem numa leitura só: é uma tabela de tamanho de equipe, e um
+// mapa em memória custa o mesmo que uma linha.
+//
+// A PROPRIEDADE QUE NÃO PODE SE PERDER: desativar uma conta derruba a sessão em
+// curso na hora (o cookie de 60 dias deixa de valer no instante do
+// desligamento). Por isso TODA escrita invalida o cache — `setUserActive`,
+// `setUserRole` e o upsert do login. O efeito continua imediato pelo caminho da
+// aplicação, que é por onde o desligamento acontece.
+//
+// RESÍDUO ASSUMIDO: uma alteração feita DIRETO no banco (SQL na mão, Supabase
+// Studio) leva até CONFIG_TTL_MS para valer. Antes valia na hora. Se algum dia
+// isso importar, chame `invalidateUsersCache()` ou reinicie o processo.
+const usersCache = cachedReader<Map<string, { role: Role; active: boolean }>>(
+  "users",
+  async () => {
+    const rows = await getDb()
+      .select({
+        linkedinId: users.linkedinId,
+        role: users.role,
+        active: users.active,
+      })
+      .from(users);
+    return new Map(
+      rows.map((r) => [r.linkedinId, { role: toRole(r.role), active: r.active }]),
+    );
+  },
+  () => new Map(),
+);
+
+/** Descarta o cache de papéis. Chamado por toda escrita em `users`. */
+export function invalidateUsersCache(): void {
+  usersCache.invalidate();
+}
+
+/** Carrega papéis para a memória no boot — ver src/instrumentation-node.ts. */
+export async function preloadUsers(): Promise<void> {
+  if (!isDbConfigured()) return;
+  await usersCache.preload();
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Registro de pessoas, papéis e status da conta.
@@ -101,22 +148,21 @@ export async function upsertUserOnLogin(input: {
     })
     .returning();
 
+  // Primeiro login cria a linha (e pode virar admin): sem invalidar, a pessoa
+  // entraria e o cache continuaria sem conhecê-la até o TTL.
+  invalidateUsersCache();
   return { ok: true, user: toUser(row) };
 }
 
-/** Papel + status, numa query. É o que a DAL consulta a cada requisição. */
+/** Papel + status. Servido de memória — ver o cache no topo do arquivo. */
 export async function getUserAuth(
   linkedinId: string,
 ): Promise<{ role: Role; active: boolean }> {
   if (!isDbConfigured()) return { role: DEFAULT_ROLE, active: true };
-  const [row] = await getDb()
-    .select({ role: users.role, active: users.active })
-    .from(users)
-    .where(eq(users.linkedinId, linkedinId))
-    .limit(1);
+  const row = (await usersCache.get()).get(linkedinId);
   // Ausente do banco ⇒ o menor papel, nunca um maior. `active` true para não
   // trancar quem tem sessão válida numa instalação recém-migrada.
-  return { role: toRole(row?.role), active: row?.active ?? true };
+  return { role: row?.role ?? DEFAULT_ROLE, active: row?.active ?? true };
 }
 
 /**
@@ -189,6 +235,8 @@ export async function setUserRole(
     .set({ role })
     .where(eq(users.linkedinId, linkedinId))
     .returning();
+  // Rebaixar vale NA HORA, como antes do cache.
+  invalidateUsersCache();
   return { ok: true, user: toUser(row) };
 }
 
@@ -223,5 +271,8 @@ export async function setUserActive(
     .set({ active })
     .where(eq(users.linkedinId, linkedinId))
     .returning();
+  // O desligamento derruba a sessão em curso NA HORA — é o mecanismo de "esta
+  // pessoa saiu da equipe" e não pode esperar o TTL.
+  invalidateUsersCache();
   return { ok: true, user: toUser(row) };
 }

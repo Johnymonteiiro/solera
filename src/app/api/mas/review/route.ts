@@ -8,8 +8,6 @@ import { getSession } from "@/lib/sessions";
 import { Command } from "@langchain/langgraph";
 import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "nodejs";
-
 const VALID_DECISIONS: HumanDecision[] = [
   "approve",
   "reject",

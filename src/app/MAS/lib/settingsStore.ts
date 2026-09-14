@@ -1,6 +1,7 @@
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { appSettings, getDb, isDbConfigured } from "@/db";
 import { NavigatorProvider } from "../types/types";
+import { cachedReader } from "./configCache";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config do workspace, agora no Postgres (`app_settings`) — antes era
@@ -10,12 +11,16 @@ import { NavigatorProvider } from "../types/types";
 // campo vazio cai no `process.env`. É o que mantém o dev funcionando sem banco
 // e o que a UI mostra como "usando .env".
 //
-// TUDO É ASSÍNCRONO. Os resolvers eram síncronos quando liam arquivo com
-// readFileSync; virar cache em memória para preservar a assinatura seria pior
-// que o ruído do `await`: a primeira chamada de um processo frio serviria a
-// chave do .env em vez da do banco, e o `judgeMeta.model` do dataset registraria
-// um modelo que não foi o usado. Config silenciosamente errada já custou as
-// notas do Judge uma vez.
+// TUDO É ASSÍNCRONO, e agora com CACHE — ver lib/configCache.ts.
+//
+// O cache foi recusado antes, com razão: servir a chave do .env quando o banco
+// tem outra produz config silenciosamente errada, e `judgeMeta.model` acabaria
+// registrando um modelo que não foi o usado. O cache atual preserva essa regra —
+// numa cache fria a leitura do banco é AGUARDADA, e o valor do banco vence
+// sempre que o banco responde. O que ele muda é o comportamento quando o banco
+// NÃO responde: em vez de o pipeline travar (o agente de busca lia a chave do
+// Tavily a cada chamada da ferramenta, ~500ms de RTT cada, em série), segue com
+// o último valor conhecido e avisa alto.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ApiKeyName =
@@ -82,27 +87,52 @@ function defaults(): Settings {
 
 // ─── Acesso cru à tabela ─────────────────────────────────────────────────────
 
+const settingsCache = cachedReader<Map<string, string>>(
+  "app_settings",
+  async () => {
+    const map = new Map<string, string>();
+    const rows = await getDb()
+      .select({ key: appSettings.key, value: appSettings.value })
+      .from(appSettings);
+    for (const r of rows) if (r.value.trim()) map.set(r.key, r.value);
+    return map;
+  },
+  () => new Map(),
+);
+
 /** Todas as linhas como um Map. Uma query — os call sites leem várias chaves. */
 export async function readAll(): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  if (!isDbConfigured()) return map;
-  const rows = await getDb()
-    .select({ key: appSettings.key, value: appSettings.value })
-    .from(appSettings);
-  for (const r of rows) if (r.value.trim()) map.set(r.key, r.value);
-  return map;
+  if (!isDbConfigured()) return new Map();
+  return settingsCache.get();
 }
 
-/** Uma chave só. Devolve undefined quando vazia — quem chama cai no .env. */
+/**
+ * Uma chave só.
+ *
+ * Sai do MESMO mapa cacheado do `readAll`, e não de um `select ... where key`.
+ * A tabela tem uma dúzia de linhas: buscar uma chave por query custava um
+ * round-trip cada, e o pior call site era `searchWeb`, que relia a chave do
+ * provedor a cada chamada da ferramenta de busca.
+ */
 export async function readKey(key: string): Promise<string | undefined> {
   if (!isDbConfigured()) return undefined;
-  const [row] = await getDb()
-    .select({ value: appSettings.value })
-    .from(appSettings)
-    .where(eq(appSettings.key, key))
-    .limit(1);
-  const v = row?.value?.trim();
-  return v ? v : undefined;
+  return (await settingsCache.get()).get(key);
+}
+
+/** Descarta o cache. Chamado depois de gravar — a UI reflete na hora. */
+export function invalidateSettingsCache(): void {
+  settingsCache.invalidate();
+}
+
+/** Carrega as settings para a memória. Chamado no boot — ver src/instrumentation.ts. */
+export async function preloadSettings(): Promise<void> {
+  if (!isDbConfigured()) return;
+  await settingsCache.preload();
+}
+
+/** Estado do cache, para o healthcheck. */
+export function settingsCacheStatus() {
+  return settingsCache.status();
 }
 
 /**
@@ -136,6 +166,9 @@ export async function writeKeys(
   if (apagar.length) {
     await db.delete(appSettings).where(inArray(appSettings.key, apagar));
   }
+  // Invalida ANTES de gravar e DEPOIS: antes evita servir valor velho a quem
+  // ler no meio da escrita; depois garante que a próxima leitura veja o novo.
+  invalidateSettingsCache();
   for (const row of gravar) {
     await db
       .insert(appSettings)
@@ -150,6 +183,7 @@ export async function writeKeys(
         },
       });
   }
+  invalidateSettingsCache();
 }
 
 // ─── Forma antiga (Settings), mantida para as rotas existentes ───────────────

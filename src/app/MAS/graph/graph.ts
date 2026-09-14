@@ -7,6 +7,7 @@ import { hitlNode } from "../nodes/hitl.node";
 import { publisherNode } from "../nodes/publisher.node";
 import { researcherNode } from "../nodes/researcher.node";
 import { writerNode } from "../nodes/writer.node";
+import { conformanceFailures } from "../lib/rubric";
 import { AgentState, State } from "../states/states";
 
 // ─── Funções de roteamento ────────────────────────────────────────────────────
@@ -46,9 +47,37 @@ export function routeAfterJudge(state: State): "hitl" | "writer" {
     );
     return "hitl";
   }
-  // score < 7 (inclui 0 default quando judge falha) → reescreve antes de ir ao humano.
-  // 7 força "bom" (não apenas mediano) e filtra a maior parte dos posts off-topic.
-  if (state.judgement.score < 7) return "writer";
+  // Gate de qualidade: a regra PRÉ-REGISTRADA do estudo (todas as dimensões
+  // ≥ ACCEPT_MIN), calculada em `lib/rubric.ts` e gravada em `judgement.decision`.
+  //
+  // É deliberado que o gate de produção seja a MESMA regra que a análise aplica
+  // à mediana humana: o estudo mede o Critic como mecanismo de controle de
+  // qualidade, e medir um limiar que o sistema não usa responderia outra
+  // pergunta. Mexer no limiar depois de ver as respostas humanas invalida o
+  // pré-registro — ver ACCEPT_MIN.
+  //
+  // O default do state tem overall=0 e decision="REJECT", então uma falha de
+  // parse do judge cai em reescrita, como antes.
+  if (state.judgement.decision === "REJECT") return "writer";
+
+  // ── Gate de conformidade ──────────────────────────────────────────────────
+  //
+  // Fatos sobre o texto, calculados em código, não percepção: faixa de
+  // caracteres, link no corpo, engagement bait. Eles já eram medidos e não
+  // faziam nada — um post de 1.202 chars num alvo de 500–900, com bait, passava
+  // com ACCEPT porque as quatro dimensões estavam ok.
+  //
+  // Fica DEPOIS do gate de qualidade e NÃO altera `judgement.decision`: a
+  // decisão é a variável do estudo, tem que continuar sendo só a regra da
+  // rubrica, aplicável igual à mediana humana. Isto aqui é roteamento — o
+  // motivo fica recuperável nas próprias flags da nota.
+  const conformidade = conformanceFailures(state.judgement);
+  if (conformidade.length) {
+    console.log(
+      `[graph] ACCEPT na qualidade mas falha de conformidade (${conformidade.join(", ")}) — devolvendo ao writer`,
+    );
+    return "writer";
+  }
   return "hitl";
 }
 

@@ -4,9 +4,6 @@ import { deleteThread } from "@/app/MAS/lib/threadStore";
 import { requireArea } from "@/lib/dal";
 import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 // Deleta um post por completo: thread + registro publicado + checkpoint.
 // Independe do status e é idempotente (não despublica do LinkedIn).
 export async function DELETE(

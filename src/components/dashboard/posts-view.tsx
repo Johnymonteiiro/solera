@@ -5,6 +5,7 @@ import { POST_SIZE_RANGES } from "@/app/MAS/constants";
 import { AgentStatus } from "@/app/MAS/types/types";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { Button } from "@/components/ui/button";
+import { TableRowsSkeleton } from "@/components/dashboard/skeletons";
 import { cn } from "@/lib/utils";
 import {
   CheckCircle2,
@@ -240,9 +241,7 @@ export function PostsView() {
           </div>
 
           {loading && posts.length === 0 ? (
-            <div className="px-6 py-10 text-center text-[12px] text-[var(--text-muted)]">
-              Carregando posts...
-            </div>
+            <TableRowsSkeleton rows={PAGE_SIZE} cols={5} grid={GRID_COLS} />
           ) : pageRows.length === 0 ? (
             <div className="px-6 py-12 text-center text-[13px] text-[var(--text-muted)]">
               Nenhum post encontrado.

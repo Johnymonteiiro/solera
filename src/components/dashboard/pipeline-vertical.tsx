@@ -1,5 +1,6 @@
 "use client";
 
+import { MAX_JUDGE_RETRIES } from "@/app/MAS/constants";
 import { AgentStatus } from "@/app/MAS/types/types";
 import { AgentArtifactButton } from "@/components/dashboard/agent-artifact-button";
 import {
@@ -165,6 +166,66 @@ function Connector({ color }: ConnectorProps) {
   );
 }
 
+/**
+ * A aresta de volta judge → writer, com a conta das reescritas.
+ *
+ * O grafo tem um ciclo (`routeAfterJudge` devolve "writer" em REJECT) e a lista
+ * vertical desenhava só a ida: um post aprovado de primeira e um reescrito três
+ * vezes tinham o mesmo fluxo na tela, e a diferença entre os dois é o objeto do
+ * estudo. Aqui o ciclo aparece — e some quando não aconteceu, porque uma seta
+ * de volta permanente diria que o loop rodou sempre.
+ */
+function LoopConnector({
+  color,
+  rewrites,
+  active,
+}: {
+  color: string;
+  rewrites: number;
+  active: boolean;
+}) {
+  const amber = "var(--accent-amber)";
+  return (
+    <div className="flex shrink-0 items-center gap-2 self-start">
+      <svg aria-hidden width={34} height={30} className="ml-[12px] overflow-visible">
+        {/* ida: writer → judge, no mesmo x dos outros conectores (12 + 16 = 28) */}
+        <line
+          x1="16"
+          y1="0"
+          x2="16"
+          y2="30"
+          stroke={color}
+          strokeWidth="1.5"
+          strokeDasharray="3 3"
+          style={{ animation: "dash-march 0.6s linear infinite" }}
+        />
+        {/* volta: judge → writer, contornando pela esquerda */}
+        <path
+          d="M16 27 C 2 27, 2 3, 16 3"
+          fill="none"
+          stroke={amber}
+          strokeWidth="1.5"
+          strokeDasharray={active ? "3 3" : undefined}
+          style={active ? { animation: "dash-march 0.6s linear infinite" } : undefined}
+        />
+        <path
+          d="M12 7 L16 2 L20 7"
+          fill="none"
+          stroke={amber}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-[var(--accent-amber)]/40 bg-[var(--accent-amber-dim)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.5px] text-[var(--accent-amber)]"
+        title={`O judge reprovou e devolveu o draft para o writer ${rewrites}× (teto de ${MAX_JUDGE_RETRIES})`}
+      >
+        ↺ {rewrites}/{MAX_JUDGE_RETRIES} reescrita{rewrites > 1 ? "s" : ""}
+      </span>
+    </div>
+  );
+}
+
 interface Props {
   currentStatus: AgentStatus;
   artifacts?: ThreadArtifacts | null;
@@ -180,6 +241,18 @@ export function PipelineVertical({
 }: Props) {
   const isError = currentStatus === "error";
   const stoppedReason = artifacts?.stoppedReason ?? null;
+
+  // Reescritas pedidas pelo JUDGE. Contadas pelo trigger das versões gravadas;
+  // `judgeRetries` só entra como reserva (ele conta junto as passadas de revisão
+  // humana, então diria "o judge reprovou" onde quem reprovou foi a pessoa).
+  const versions = artifacts?.versions ?? [];
+  const judgeRewrites = versions.length
+    ? versions.filter((v) => v.trigger === "judge_retry").length
+    : (artifacts?.judgeRetries ?? 0);
+  // A volta está ACONTECENDO agora: o writer rodando depois de já existir nota.
+  const loopRunning =
+    judgeRewrites > 0 &&
+    (currentStatus === "writing" || currentStatus === "revising");
 
   return (
     <ul
@@ -217,9 +290,21 @@ export function PipelineVertical({
         else if (isActiveEdge) color = "var(--accent-purple)";
         else if (isDoneEdge) color = "var(--accent-green)";
 
+        // A aresta que entra no judge é a única que tem volta no grafo.
+        const isJudgeEdge = agent.id === "judge" && judgeRewrites > 0;
+
         return (
           <li key={agent.id} className="flex flex-col">
-            {idx > 0 && <Connector color={color} />}
+            {idx > 0 &&
+              (isJudgeEdge ? (
+                <LoopConnector
+                  color={color}
+                  rewrites={judgeRewrites}
+                  active={loopRunning}
+                />
+              ) : (
+                <Connector color={color} />
+              ))}
             <VerticalNode agent={agent} state={state} artifacts={artifacts} />
           </li>
         );

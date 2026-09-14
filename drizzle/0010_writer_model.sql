@@ -1,0 +1,18 @@
+-- Modelo do writer POR EXECUÇÃO — condição experimental do corpus.
+--
+-- Por que existe: o corpus precisa de dispersão de qualidade e o pipeline não a
+-- produz sozinho. Três tentativas de obter variação por dentro (prompt do
+-- analyst, prompt do writer, temperatura 0.3→0.9) não moveram a nota do juiz um
+-- ponto sequer: o gerador tem distribuição de saída estreita. A alavanca que
+-- resta é estrutural — trocar o MODELO que escreve.
+--
+-- Por que uma coluna e não a config global de /agentes: mudar
+-- `agent_configs.writer.model` entre execuções é config mutável em runtime, que
+-- é exatamente o hazard que já corrompeu as notas do Judge uma vez. Aqui a
+-- condição viaja COM a execução e fica gravada nela — sem isso, um corpus de
+-- qualidade variada seria um corpus cuja variação ninguém consegue explicar
+-- depois.
+--
+-- Vazio = o que estava na config global no momento da execução (é o caso de
+-- todas as execuções já feitas, que não têm como saber retroativamente).
+ALTER TABLE "runs" ADD COLUMN IF NOT EXISTS "writer_model" text NOT NULL DEFAULT '';

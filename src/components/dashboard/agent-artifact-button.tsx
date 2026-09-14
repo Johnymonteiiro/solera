@@ -1,6 +1,8 @@
 "use client";
 
+import { MAX_JUDGE_RETRIES, MAX_REVISIONS } from "@/app/MAS/constants";
 import {
+  DraftVersionSummary,
   JudgeResult,
   HumanFeedback,
   ResearchResult,
@@ -42,7 +44,11 @@ export function AgentArtifactButton({ agent, state, artifacts }: Props) {
         {agent.artifact.label}
       </PopoverTrigger>
       <PopoverContent className="nodrag nopan nowheel">
-        <ArtifactRenderer artifactKey={agent.artifact.key} value={value} />
+        <ArtifactRenderer
+          artifactKey={agent.artifact.key}
+          value={value}
+          artifacts={artifacts}
+        />
       </PopoverContent>
     </Popover>
   );
@@ -51,9 +57,10 @@ export function AgentArtifactButton({ agent, state, artifacts }: Props) {
 interface RendererProps {
   artifactKey: ArtifactKey;
   value: ThreadArtifacts[ArtifactKey];
+  artifacts: ThreadArtifacts | null;
 }
 
-function ArtifactRenderer({ artifactKey, value }: RendererProps) {
+function ArtifactRenderer({ artifactKey, value, artifacts }: RendererProps) {
   switch (artifactKey) {
     case "researchResults":
       return <ResearchList items={value as ResearchResult[]} />;
@@ -62,7 +69,12 @@ function ArtifactRenderer({ artifactKey, value }: RendererProps) {
     case "draft":
       return <DraftView text={value as string} />;
     case "judgement":
-      return <JudgementView judgement={value as JudgeResult | null} />;
+      return (
+        <JudgementView
+          judgement={value as JudgeResult | null}
+          versions={artifacts?.versions ?? []}
+        />
+      );
     case "humanFeedback":
       return <FeedbackView feedback={value as HumanFeedback | null} />;
     case "finalPostUrl":
@@ -138,25 +150,118 @@ function DraftView({ text }: { text: string }) {
   );
 }
 
-function JudgementView({ judgement }: { judgement: JudgeResult | null }) {
+const TRIGGER_LABEL: Record<DraftVersionSummary["trigger"], string> = {
+  initial: "inicial",
+  judge_retry: "reescrita do judge",
+  human_revision: "revisão humana",
+};
+
+/**
+ * O placar do loop judge ↔ writer.
+ *
+ * Existia o buraco de a crítica não dizer se houve loop: lendo só as notas, um
+ * ACCEPT de primeira e um ACCEPT depois de três reescritas eram indistinguíveis
+ * na tela — e a diferença entre os dois é o objeto do estudo. Cada linha é uma
+ * versão gravada em `draft_versions`, com a nota atrelada àquela versão.
+ */
+function LoopHistory({ versions }: { versions: DraftVersionSummary[] }) {
+  const retries = versions.filter((v) => v.trigger === "judge_retry").length;
+  const humanas = versions.filter((v) => v.trigger === "human_revision").length;
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-md border border-[var(--border-subtle)] p-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span className="text-[10px] font-semibold uppercase tracking-[1px] text-[var(--text-muted)]">
+          Loop do judge
+        </span>
+        <span
+          className={`font-mono text-[10px] ${
+            retries === 0
+              ? "text-[var(--text-muted)]"
+              : retries >= MAX_JUDGE_RETRIES
+                ? "text-[var(--accent-red)]"
+                : "text-[var(--accent-amber)]"
+          }`}
+        >
+          {retries === 0
+            ? "aprovado de primeira — nenhuma reescrita pedida"
+            : `${retries} de ${MAX_JUDGE_RETRIES} reescritas${
+                retries >= MAX_JUDGE_RETRIES ? " — teto, decisão humana" : ""
+              }`}
+        </span>
+        {humanas > 0 && (
+          <span className="font-mono text-[10px] text-[var(--text-muted)]">
+            · {humanas}/{MAX_REVISIONS} revisões humanas
+          </span>
+        )}
+      </div>
+
+      {versions.length > 0 && (
+        <ul className="flex flex-col gap-0.5 font-mono text-[10px] text-[var(--text-secondary)]">
+          {versions.map((v) => (
+            <li key={v.version} className="flex flex-wrap items-center gap-x-2">
+              <span className="text-[var(--text-primary)]">v{v.version}</span>
+              <span className="text-[var(--text-muted)]">
+                {TRIGGER_LABEL[v.trigger]}
+              </span>
+              <span className="text-[var(--text-muted)]">{v.charCount} ch</span>
+              {v.overall !== null && <span>{v.overall}/5</span>}
+              {v.decision && (
+                <span
+                  className={
+                    v.decision === "ACCEPT"
+                      ? "text-[var(--accent-green)]"
+                      : "text-[var(--accent-red)]"
+                  }
+                >
+                  {v.decision}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function JudgementView({
+  judgement,
+  versions,
+}: {
+  judgement: JudgeResult | null;
+  versions: DraftVersionSummary[];
+}) {
   if (!judgement) return null;
   return (
     <div className="flex flex-col gap-2">
       <h4 className="text-xs font-semibold text-[var(--text-primary)]">
         Crítica
       </h4>
+      <LoopHistory versions={versions} />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-[var(--text-secondary)]">
-        <span>score {judgement.score}/10</span>
-        <span>hook {judgement.hookQuality}/10</span>
-        <span>originalidade {judgement.originality}/10</span>
-        <span>scannability {judgement.scannability}/10</span>
-        <span>cta {judgement.ctaQuality}/10</span>
-        <span>tom LinkedIn: {judgement.toneLinkedIn ? "ok" : "não"}</span>
+        <span
+          className={
+            judgement.decision === "ACCEPT"
+              ? "text-[var(--accent-green)]"
+              : "text-[var(--accent-red)]"
+          }
+        >
+          {judgement.decision}
+        </span>
+        <span>geral {judgement.overall}/5</span>
+        <span>clareza {judgement.clarity}/5</span>
+        <span>relevância {judgement.relevance}/5</span>
+        <span>profissional {judgement.professional}/5</span>
+        <span>engajamento {judgement.engagement}/5</span>
       </div>
-      {(judgement.hasEngagementBait || judgement.hasExternalLinkInBody) && (
-        <div className="flex flex-wrap gap-1 font-mono text-[10px] text-[var(--accent-red)]">
+      {(judgement.hasEngagementBait ||
+        judgement.hasExternalLinkInBody ||
+        !judgement.lengthOk) && (
+        <div className="flex flex-wrap gap-1 font-mono text-[10px] text-[var(--accent-amber)]">
           {judgement.hasEngagementBait && <span>⚠ engagement bait</span>}
           {judgement.hasExternalLinkInBody && <span>⚠ link no corpo</span>}
+          {!judgement.lengthOk && <span>⚠ fora da faixa de chars</span>}
         </div>
       )}
       {judgement.issues.length > 0 && (

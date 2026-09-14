@@ -1,5 +1,6 @@
 import {
   AgentStatus,
+  DraftVersionSummary,
   JudgeResult,
   HumanFeedback,
   PostSize,
@@ -29,6 +30,14 @@ export interface ThreadArtifacts {
   insights: string[];
   draft: string;
   judgement: JudgeResult | null;
+  /**
+   * Histórico de versões desta execução, do banco — v1, v2, v3…
+   *
+   * É o que responde "o judge mandou reescrever?" na tela. Vem do registro do
+   * estudo (`draft_versions`), não do state: o state guarda só a versão
+   * corrente, e um contador que também conta revisão humana.
+   */
+  versions: DraftVersionSummary[];
   humanFeedback: HumanFeedback | null;
   revisionCount: number;
   judgeRetries: number;

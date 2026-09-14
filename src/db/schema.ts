@@ -1,3 +1,6 @@
+// Relativo, não `@/`: este arquivo é carregado pelo drizzle-kit fora do
+// resolvedor de paths do Next.
+import type { JudgeFinding } from "../app/MAS/types/types";
 import { relations } from "drizzle-orm";
 import {
   boolean,
@@ -57,6 +60,14 @@ export const appSettings = pgTable("app_settings", {
 export const agentConfigs = pgTable("agent_configs", {
   agentId: text("agent_id").primaryKey(),
   enabled: boolean("enabled").notNull().default(true),
+  /**
+   * Modelo deste agente. Vazio = herda `LLM_MODEL` das app_settings.
+   *
+   * Existe porque o Judge lia a MESMA chave que o Writer: o juiz avaliava,
+   * sempre, texto do próprio modelo — viés de auto-preferência, o confundimento
+   * mais sério do estudo. Ver drizzle/0009_agent_model.sql.
+   */
+  model: text("model").notNull().default(""),
   role: text("role").notNull().default(""),
   promptOverride: text("prompt_override").notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -128,6 +139,15 @@ export const runs = pgTable(
     /** Tópico normalizado (sem acento/caixa/pontuação) — chave de pareamento. */
     topicNorm: text("topic_norm").notNull(),
     postSize: text("post_size").notNull(),
+    /**
+     * Modelo que ESCREVEU esta execução. Vazio = o da config global na época.
+     *
+     * É condição experimental do corpus, não config: variar o modelo do writer
+     * é a única alavanca estrutural de dispersão de qualidade que sobrou, e uma
+     * variação que não fica gravada por execução é ruído que ninguém explica
+     * depois. Ver drizzle/0010_writer_model.sql.
+     */
+    writerModel: text("writer_model").notNull().default(""),
     /** false = judge pontua mas não reescreve (condição "sem judge"). */
     judgeLoop: boolean("judge_loop").notNull(),
     status: text("status").notNull(),
@@ -209,28 +229,63 @@ export const judgements = pgTable(
       .unique()
       .references(() => draftVersions.id, { onDelete: "cascade" }),
 
-    score: integer("score").notNull(),
-    hookQuality: integer("hook_quality").notNull(),
-    originality: integer("originality").notNull(),
-    scannability: integer("scannability").notNull(),
-    ctaQuality: integer("cta_quality").notNull(),
+    // ── Rubrica v2 (2026-08-28): as 4 dimensões 1–5 do instrumento ────────
+    // Nullable porque as linhas da v1 não têm estas colunas. `rubricVersion`
+    // é o que a análise filtra — misturar escalas 0–10 e 1–5 na mesma coluna
+    // seria pior que duas colunas, e apagar a coleta v1 destruiria evidência.
+    clarity: integer("clarity"),
+    relevance: integer("relevance"),
+    professional: integer("professional"),
+    engagement: integer("engagement"),
+    /** Holística 1–5, eliciada por último. */
+    overall: integer("overall"),
+    /** "ACCEPT" | "REJECT" — calculada em código pela regra pré-registrada. */
+    decision: text("decision"),
+    /** Faixa de chars: determinístico, calculado em código. */
+    lengthOk: boolean("length_ok"),
 
-    lengthAdequate: boolean("length_adequate").notNull(),
-    toneLinkedIn: boolean("tone_linkedin").notNull(),
+    // ── Rubrica v1 (0–10). Preservadas e agora nullable ───────────────────
+    score: integer("score"),
+    hookQuality: integer("hook_quality"),
+    originality: integer("originality"),
+    scannability: integer("scannability"),
+    ctaQuality: integer("cta_quality"),
+    lengthAdequate: boolean("length_adequate"),
+    toneLinkedIn: boolean("tone_linkedin"),
+
+    /** Eliciada do LLM nas duas versões — bait não é decidível por regex. */
     hasEngagementBait: boolean("has_engagement_bait").notNull(),
     hasExternalLinkInBody: boolean("has_external_link_in_body").notNull(),
 
     issues: jsonb("issues").$type<string[]>().notNull().default([]),
     suggestions: jsonb("suggestions").$type<string[]>().notNull().default([]),
 
+    /**
+     * As issues com a dimensão e o ponto da escala que cada uma descreve.
+     * `issues` continua sendo o texto puro — é o que writer, UI e CSV leem.
+     * Null nas avaliações anteriores a 2026-09-08, que não tinham marcação.
+     */
+    findings: jsonb("findings").$type<JudgeFinding[]>(),
+    /**
+     * O juiz pontuou acima do ponto que ele mesmo citou, insistiu na
+     * retentativa, e o código baixou a nota. A frequência disto é medida da
+     * confiabilidade do juiz, não detalhe de implementação.
+     */
+    coherenceClamped: boolean("coherence_clamped").notNull().default(false),
+
     // Procedência (JudgeRunMeta) — sem isto a nota é irreproduzível, porque o
-    // rubric efetivo depende de agent-config.json, que é mutável em runtime.
+    // rubric efetivo depende da config em banco, mutável em runtime.
     model: text("model").notNull(),
     temperature: doublePrecision("temperature").notNull(),
     rubricHash: text("rubric_hash").notNull(),
+    /** "v1" | "v2" — separa as coletas; o hash sozinho é opaco demais. */
+    rubricVersion: text("rubric_version").notNull().default("v1"),
     judgedAt: timestamp("judged_at", { withTimezone: true }).notNull(),
   },
-  (t) => [index("judgements_rubric_hash_idx").on(t.rubricHash)],
+  (t) => [
+    index("judgements_rubric_hash_idx").on(t.rubricHash),
+    index("judgements_rubric_version_idx").on(t.rubricVersion),
+  ],
 );
 
 /**
@@ -252,6 +307,16 @@ export const humanRatings = pgTable(
     /** Letra cega mostrada no form (A–F…) — o avaliador nunca vê a condição. */
     postLabel: text("post_label"),
 
+    // ── Rubrica v2: EXATAMENTE as mesmas 4 dimensões que o Judge emite ────
+    // A simetria é o requisito do desenho: o alinhamento juiz–humano só é
+    // legítimo se os dois responderam ao mesmo instrumento, com as mesmas
+    // âncoras (lib/rubric.ts) e a mesma informação disponível.
+    clarity: integer("clarity"),
+    relevance: integer("relevance"),
+    professional: integer("professional"),
+    engagement: integer("engagement"),
+
+    // ── Rubrica v1. Mantidas para a coleta antiga ─────────────────────────
     hookQuality: integer("hook_quality"),
     originality: integer("originality"),
     scannability: integer("scannability"),
@@ -260,10 +325,13 @@ export const humanRatings = pgTable(
     hasExternalLinkInBody: boolean("has_external_link_in_body"),
     /**
      * Nota holística, perguntada por ÚLTIMO e eliciada direto do avaliador.
-     * Não derivar de composto: o RQ2 mede qualidade percebida, e um composto
-     * com pesos escolhidos por nós tornaria a concordância circular.
+     * Não derivar de composto: o RQ mede qualidade percebida, e um composto
+     * com pesos escolhidos por nós tornaria a concordância circular. É ela que
+     * permite derivar pesos empiricamente (regredir holística ~ dimensões).
      */
     overall: real("overall"),
+    /** "v1" | "v2" — a resposta pertence a um instrumento, não a um formulário. */
+    rubricVersion: text("rubric_version").notNull().default("v2"),
 
     submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull(),
   },

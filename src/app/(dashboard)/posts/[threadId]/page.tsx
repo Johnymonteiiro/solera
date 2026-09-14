@@ -1,8 +1,6 @@
 import { PostDetail } from "@/components/dashboard/post-detail";
 import { Topbar } from "@/components/dashboard/topbar";
 
-export const dynamic = "force-dynamic";
-
 export default async function Page({
   params,
 }: {
