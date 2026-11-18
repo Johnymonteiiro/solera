@@ -146,9 +146,3 @@ The application is built with Next.js, stores its data in PostgreSQL, and calls 
 | `ADMIN_LINKEDIN_IDS` | Optional: LinkedIn IDs that keep access even when deactivated |
 | `LANGCHAIN_API_KEY` | Optional: run tracing in LangSmith |
 | `OWNER_ID` | Identifies the owner of the runs in the study scripts |
-
-| Command | What it does |
-|---|---|
-| `pnpm study:critic-form` | Exports the Critic scores of the rated posts |
-| `pnpm study:benchmark` | Scores the posts of the three Writers under the same Critic |
-| `python study/analysis/form_agreement.py` | Reruns the analysis and the paper tables |
