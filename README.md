@@ -1,4 +1,4 @@
-# Solera: Human-in-the-Loop Multi-Agent Content Generation
+# Human-in-the-Loop Multi-Agent Content Generation
 
 Code, data, and figures accompanying **A Human-in-the-Loop Multi-Agent Architecture for Social Media Content Generation** (ICAART 2027).
 
