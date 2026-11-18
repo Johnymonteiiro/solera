@@ -6,17 +6,11 @@ Solera writes professional LinkedIn posts with five agents: Researcher, Analyst,
 
 The study compares the Critic with 19 human evaluators on ten generated posts. The Critic's scores were close to the mean human ratings but nearly constant across posts, so its exact agreement with individual evaluators (30.9%) did not exceed the level expected from the score distributions (31.2%). The Critic was stable across repeated runs and rejected 80% of truncated posts. A revision of its prompt alone changed 9 of the 10 acceptance decisions.
 
-The figures and tables that do not fit in the paper are reproduced below, each with a description. The sections link to the prompts, data, and scripts behind the results.
+The figures and tables below follow the order in which they appear in the paper, each with a description based on the paper's text. Figure 1, the pipeline overview, is in the paper. The sections link to the prompts, data, and scripts behind the results.
 
 ## Architecture
 
 The Researcher collects sources through web search (Tavily), the Analyst extracts the main insights, the Writer drafts the post, and the Critic scores it and suggests revisions. The agents are nodes of a LangGraph `StateGraph` and do not call one another: each node reads the shared state and returns a partial update, and conditional edges decide where execution goes next. The Critic never decides whether a post is accepted; that decision is computed in code. A rejected draft returns to the Writer for at most three automatic rewrites. A draft that passes, or exhausts its rewrites, waits for the human reviewer. While it waits, the workflow is suspended with `interrupt()` and its state is persisted, so the run resumes from the same point.
-
-**Paper Figure 1: Multi-agent pipeline with Critic-based quality control, iterative revision, and Human-in-the-Loop validation before publication.**
-
-![Multi-agent pipeline](figures/pipeline.png)
-
-Solid arrows are the execution flow. The dashed purple arrow is the revision loop between the Critic and the Writer, and the dashed black lines are interactions with tools and with the persistent shared state (the LangGraph checkpointer). The band at the bottom lists the quality criteria used by both the Critic and the human evaluators.
 
 | Agent | Role | Model in the study | Temperature | Prompt |
 |---|---|---|---:|---|
@@ -27,75 +21,44 @@ Solid arrows are the execution flow. The dashed purple arrow is the revision loo
 | Human reviewer | Approves, requests changes, or cancels | | | |
 | Publisher | Publishes the approved post on LinkedIn | | | |
 
-The prompts ran in Brazilian Portuguese. The [originals](prompts/README.md) and their [English translations](prompts/en/README.md) are generated from the system itself. In the code and the interface, the Critic is called **Judge**.
-
-## Critic rubric and acceptance rule
-
-The Critic and the human evaluators rate the same four dimensions on a 1 to 5 scale. The paper's Table 1 shows only the evaluation questions; the full rubric, with a verbal anchor for every scale point, is below (translated from Brazilian Portuguese; [original](prompts/05-rubrica-e-regra-de-aceitacao.md)).
-
-**Table - Clarity and Readability (Cla, weight 0.35).** *Is the post clear, understandable, well structured and easy to read?*
-
-| Score | Anchor |
-|---|---|
-| 1 Very poor | Confusing; dense block or overly long sentences, with no identifiable central idea. |
-| 2 Poor | Hard to follow; weak structure and requires re-reading; the idea appears only at the end or not at all. |
-| 3 Acceptable | Understandable with average effort; acceptable structure, but some passages are dense, truncated, or repetitive. |
-| 4 Good | Clear and well organized; fluent reading, central idea evident early, and line breaks support readability. |
-| 5 Excellent | Exceptionally clear; each paragraph advances the idea, rhythm and formatting serve the reader, and nothing is superfluous. |
-
-**Table - Relevance and Informational Value (Rel, weight 0.35).** *Does the post deliver meaningful, substantive information appropriate for a professional audience, and does it fulfil the intent of the topic?*
-
-| Score | Anchor |
-|---|---|
-| 1 Very poor | No value or off-topic; provides no information and/or does not address the topic's intent. |
-| 2 Poor | Generic; relies on common sense or broad claims without substance and only marginally addresses the topic. |
-| 3 Acceptable | Correct but predictable; covers the basics without adding much value for people in the field. |
-| 4 Good | Substantive; provides a data point, example, or useful distinction and addresses the topic's intent well. |
-| 5 Excellent | High value; provides a non-obvious, specific, and actionable insight for the professional audience. |
-
-**Table - Professional Appropriateness (Pro, weight 0.15).** *Are the tone, language and presentation appropriate for a professional social network and the intended audience?*
-
-| Score | Anchor |
-|---|---|
-| 1 Very poor | Inappropriate; offensive, sensationalist, jarringly informal, or aggressively promotional. |
-| 2 Poor | Out of place; uses exaggeration, clickbait, empty marketing jargon, excessive emojis, or punctuation. |
-| 3 Acceptable | Nothing improper, but the register fluctuates or sounds impersonal and generic. |
-| 4 Good | Appropriate; consistent and authentic professional tone with language suited to the audience. |
-| 5 Excellent | Exemplary; credible and natural professional voice, calibrated to the audience and free of clichés. |
-
-**Table - Engagement Quality (Eng, weight 0.15).** *Does the post attract attention, sustain interest and encourage appropriate professional interaction?*
-
-| Score | Anchor |
-|---|---|
-| 1 Very poor | Does not hold attention; no effective opening or sustained interest, or artificially requests interaction. |
-| 2 Poor | Weak; slow start and declining interest, with a generic invitation such as 'what do you think?'. |
-| 3 Acceptable | Average; functional opening and sufficient interest to reach the end, but the invitation is not very specific. |
-| 4 Good | Attention-grabbing opening, sustained interest, and an invitation anchored in the post's content. |
-| 5 Excellent | The first line compels continued reading, tension is maintained, and the invitation draws on a specific reader experience. |
-
-After the four dimensions, the Critic and the evaluators give an **Overall Quality** score (*Considering everything, what is the overall quality of this post?*). It has no per-point anchors and does not enter the acceptance rule.
-
-The Critic receives the topic and the post but not the research sources, so factual accuracy is not assessed. Each issue it reports is tagged with a dimension and a scale point. If a score is higher than the worst point the Critic cited for that dimension, and the Critic does not resolve the contradiction when asked once, a check in code lowers the score.
-
-**Acceptance rule.** A post passes the automated gate and goes to human review when the composite `0.35 Cla + 0.35 Rel + 0.15 Pro + 0.15 Eng` is at least **3.5** and it is not the case that two dimensions score below 3 with at least one of them being Cla or Rel. Length, external links, and engagement bait are checked separately for reporting and do not affect routing.
+The prompts ran in Brazilian Portuguese. The [originals](prompts/README.md) and their [English translations](prompts/en/README.md) are generated from the system itself.
 
 ## Human-in-the-Loop checkpoint
 
-At the checkpoint, the reviewer sees the draft with the Critic's scores and either approves it, which sends it to the Publisher, or writes free-text feedback, which sends it back to the Writer. The revised draft passes through the Critic again before returning to the reviewer, for at most three human revision cycles.
+After the Critic stage, a human reviewer inspects the post with the Critic's scores and either approves it, which forwards it to the Publisher, or returns it with free-text feedback, which routes it back to the Writer. The revised version passes through the Critic again before returning to the reviewer, for at most three revision cycles.
 
-**Figure - Reviewer interface before and after a requested revision.**
+**Figure - Free-text feedback after review, which routes the post back to the Writer.**
 
-| Feedback request | Revised draft |
-|---|---|
-| ![Reviewer feedback](figures/hitl-feedback.png) | ![Revised draft](figures/hitl-revision.png) |
+![Free-text feedback after review](figures/hitl-feedback.png)
 
-On the left, the pipeline panel shows each agent's status, and the reviewer sees the draft, the Critic's scores, and the counters for automatic rewrites and human revisions (each limited to three). The reviewer asks for the post to be turned into a list. On the right is the same run after that revision: the draft has gone through the Writer and the Critic again (two automatic rewrites, one human revision) and is back with the reviewer. The screenshots come from an illustrative run, not from one of the ten evaluated posts.
+The pipeline panel on the left shows the status of each agent; the HITL node is awaiting review and the Publisher is pending. On the right, the reviewer sees the draft together with the Critic's scores (Clarity 4/5, Relevance 3/5, Professional Appropriateness 4/5, Engagement 3/5, Overall 3/5) and the counters of automatic rewrites and human revisions, each limited to three. The reviewer can publish the post, cancel the run, or write what needs to change; here the request is to turn the post into a list of its most important points, which sends it back to the Writer. In the interface, the Critic appears as Judge.
+
+**Figure - Example of the Human-in-the-Loop interaction and workflow execution.**
+
+![Human-in-the-Loop interaction](figures/hitl-revision.png)
+
+The same run after the requested revision. The Writer rewrote the post as a list and the Critic scored it again; the counters show two automatic rewrites and one human revision before the draft returned to the reviewer, who can again publish it, request another revision, or cancel. While the run waits for the reviewer, its state stays persisted, so it resumes from the same point. The screenshots come from an illustrative run, not from one of the ten evaluated posts.
+
+## Critic rubric and acceptance rule
+
+**Table - Quality criteria and scoring rubric used by the Critic agent and human evaluators (translated from Brazilian Portuguese).**
+
+| Criterion | Evaluation question | Scoring rubric (1-5) |
+|---|---|---|
+| Clarity and Readability | Is the post clear, understandable, well structured and easy to read? | **(1) Very poor:** Confusing; dense block or overly long sentences, with no identifiable central idea.<br>**(2) Poor:** Hard to follow; weak structure and requires re-reading; the idea appears only at the end or not at all.<br>**(3) Acceptable:** Understandable with average effort; acceptable structure, but some passages are dense, truncated, or repetitive.<br>**(4) Good:** Clear and well organized; fluent reading, central idea evident early, and line breaks support readability.<br>**(5) Excellent:** Exceptionally clear; each paragraph advances the idea, rhythm and formatting serve the reader, and nothing is superfluous. |
+| Relevance and Informational Value | Does the post deliver meaningful, substantive information appropriate for a professional audience, and does it fulfil the intent of the topic? | **(1) Very poor:** No value or off-topic; provides no information and/or does not address the topic's intent.<br>**(2) Poor:** Generic; relies on common sense or broad claims without substance and only marginally addresses the topic.<br>**(3) Acceptable:** Correct but predictable; covers the basics without adding much value for people in the field.<br>**(4) Good:** Substantive; provides a data point, example, or useful distinction and addresses the topic's intent well.<br>**(5) Excellent:** High value; provides a non-obvious, specific, and actionable insight for the professional audience. |
+| Professional Appropriateness | Are the tone, language and presentation appropriate for a professional social network and the intended audience? | **(1) Very poor:** Inappropriate; offensive, sensationalist, jarringly informal, or aggressively promotional.<br>**(2) Poor:** Out of place; uses exaggeration, clickbait, empty marketing jargon, excessive emojis, or punctuation.<br>**(3) Acceptable:** Nothing improper, but the register fluctuates or sounds impersonal and generic.<br>**(4) Good:** Appropriate; consistent and authentic professional tone with language suited to the audience.<br>**(5) Excellent:** Exemplary; credible and natural professional voice, calibrated to the audience and free of clichés. |
+| Engagement Quality | Does the post attract attention, sustain interest and encourage appropriate professional interaction? | **(1) Very poor:** Does not hold attention; no effective opening or sustained interest, or artificially requests interaction.<br>**(2) Poor:** Weak; slow start and declining interest, with a generic invitation such as 'what do you think?'.<br>**(3) Acceptable:** Average; functional opening and sufficient interest to reach the end, but the invitation is not very specific.<br>**(4) Good:** Attention-grabbing opening, sustained interest, and an invitation anchored in the post's content.<br>**(5) Excellent:** The first line compels continued reading, tension is maintained, and the invitation draws on a specific reader experience. |
+
+Every point of the 1-5 scale has a verbal anchor. Clarity and Readability is motivated by the role of message characteristics in reactions to posts in professional groups; Relevance and Informational Value and Professional Appropriateness by evidence on what LinkedIn users post and engage with; and Engagement Quality by work on engagement factors on LinkedIn. The Critic receives the topic and the post but not the research sources, so factual accuracy is not assessed. For each dimension it gives a score with observations and suggestions, and each issue it reports is tagged with a dimension and a scale point; a check in code lowers a score that is higher than the worst point cited for that dimension if the Critic does not resolve the contradiction when asked once. The Critic then gives a holistic Overall Quality score, last and without per-point anchors, which does not enter the acceptance rule. The [original rubric](prompts/05-rubrica-e-regra-de-aceitacao.md) is in Portuguese.
+
+**Acceptance rule.** The decision between Writer revision and human review is computed in code, not elicited from the model. A post is accepted by the automated gate when the composite `0.35 Cla + 0.35 Rel + 0.15 Pro + 0.15 Eng` is at least 3.5 and no two dimensions score below 3 with at least one of them being Clarity or Relevance. Length, external links, and engagement bait are checked separately for reporting and do not affect routing.
 
 ## Evaluation protocol
 
-The pipeline generated ten LinkedIn posts in Brazilian Portuguese on different topics, and the Critic accepted all of them at the first pass. Nineteen evaluators (computer engineering students, software developers, and teachers, all of them LinkedIn users) rated each post on the four rubric questions and Overall Quality. They were not told the posts were AI-generated and did not see the Critic's scores. Each evaluator gave 50 ratings, 950 in total. Each post was also scored five more times by the stored Critic configuration and once more after truncation. The pipeline was then run again on the same topics with Claude Sonnet 5 and Gemini 3.8 Flash as the Writer.
+The pipeline generated ten LinkedIn posts in Brazilian Portuguese on different topics, and the Critic accepted all of them at the first pass. Nineteen evaluators (computer engineering students, software developers, and teachers, all of them LinkedIn users) rated each post on the four rubric questions and Overall Quality. They were asked to judge each dimension independently and not to assess factual accuracy; the posts were not presented as AI-generated, and the Critic's scores were not disclosed. Each evaluator gave 50 ratings, 950 in total. Each post was also scored five more times by the stored Critic configuration and once more after truncation. The pipeline was then run again on the same topics with Claude Sonnet 5 and Gemini 3.8 Flash as the Writer.
 
-**Table - Evaluated posts.** Requested topic, length in characters, stored Critic scores (Cla, Rel, Pro, Eng, Overall), and mean human score per dimension (n = 19).
+**Table - Evaluated posts: requested topic (translated), length in characters, stored Critic scores (Clarity, Relevance, Professional Appropriateness, Engagement, Overall) and mean human score per dimension.**
 
 | Post | Requested topic (translated) | Chars | Critic | Cla | Rel | Pro | Eng | Ov |
 |---|---|---:|:---:|---:|---:|---:|---:|---:|
@@ -110,21 +73,13 @@ The pipeline generated ten LinkedIn posts in Brazilian Portuguese on different t
 | H | What is the future of programming? | 1555 | 4,3,4,3,3 | 3.7 | 3.5 | 3.7 | 3.5 | 3.6 |
 | C | Daily stand-up meetings have become an empty ritual in most tech teams | 1183 | 4,3,4,3,3 | 4.2 | 3.7 | 4.2 | 3.7 | 3.9 |
 
+The Critic scores were generally close to the mean human ratings, but varied much less across posts. It assigned Clarity and Readability a 4 to all ten posts, while the human means ranged from 3.7 to 4.2, and similar concentration occurred in the other dimensions. Six of the ten posts received a composite of exactly 3.50, the acceptance threshold. The mean human score for a post ranged only from 3.42 to 4.26.
+
 Records: [Post texts and metadata](study/data/corpus.csv) · [Critic scores of the rated posts](study/data/critic-scores.csv) · [Questionnaire responses](study/data/form-responses.xlsx) · [Post-letter mapping](study/data/mapping-corpus.csv).
 
 ## Critic-human agreement and human reliability
 
-| Dimension | Human M (SD) | Critic M (SD) | Bias [95% CI] | κw | ρ | α (humans) |
-|---|---:|---:|---:|---:|---:|---:|
-| Clarity and Readability | 3.94 (1.10) | 4.00 (0.00) | +0.06 [−0.28, +0.44] | 0.00 | n/a | −0.02 |
-| Relevance and Informational Value | 3.79 (1.18) | 3.20 (0.42) | −0.59 [−1.03, −0.13] | 0.02 | 0.22 | −0.01 |
-| Professional Appropriateness | 3.96 (1.06) | 4.10 (0.32) | +0.14 [−0.22, +0.52] | 0.04 | 0.47 | 0.00 |
-| Engagement Quality | 3.69 (1.23) | 3.30 (0.48) | −0.39 [−0.88, +0.10] | −0.01 | −0.04 | −0.01 |
-| Overall Quality | 3.82 (1.12) | 3.20 (0.42) | −0.62 [−1.05, −0.15] | −0.01 | −0.17 | −0.03 |
-
-The Critic's mean scores were close to the human means for Clarity (+0.06) and Professional Appropriateness (+0.14) and lower for Relevance (−0.59) and Overall Quality (−0.62). It gave Clarity a 4 on all ten posts, while the human means ranged from 3.7 to 4.2. Its exact agreement with individual evaluators was close to what the score distributions alone would produce, and a constant predictor answering 4 everywhere would reach 37.9%. The humans did not agree with one another either: human-human exact agreement (29.1%) was at the chance level (29.0%), Krippendorff's α was between −0.03 and 0.00, and differences between posts explained only 2% to 4% of the variance in human scores, against 41% to 44% for differences between evaluators.
-
-**Table - Exact and within-one (±1) agreement.** Human-human pairs, Critic-human pairs, and the Critic-human agreement expected by chance from the observed score distributions. Intervals come from a two-way bootstrap (posts and evaluators, 2,000 replicates).
+**Table - Exact and within-one (±1) agreement between pairs of human evaluators, between the Critic and human evaluators, and expected by chance for Critic-human comparisons given the observed score distributions.**
 
 | Dimension | H-H exact | H-H ±1 | C-H exact | C-H ±1 | Chance exact | Chance ±1 |
 |---|---:|---:|---:|---:|---:|---:|
@@ -136,21 +91,43 @@ The Critic's mean scores were close to the human means for Clarity (+0.06) and P
 | 95% CI | 21.7% to 37.3% | 56.3% to 81.3% | 22.3% to 39.9% | 66.8% to 87.7% | | |
 | Overall Quality | 27.4% | 67.4% | 22.6% | 67.9% | 23.3% | 67.7% |
 
-**Figure - Distribution of the human ratings per post and dimension (n = 19).**
+H-H compares every pair of evaluators on each post (1,710 pairs per dimension), and C-H compares the Critic with each evaluator on each post (190 comparisons per dimension). Confidence intervals come from a percentile bootstrap that resamples both posts and evaluators. Critic-human exact agreement was only slightly higher than human-human agreement and close to what the score distributions alone would produce: the observed minus expected difference ranged from −3.1 to +2.7 percentage points. A constant predictor assigning the most frequent human score, 4, in every dimension would reach 37.9%, more than the Critic. Because the scores concentrate on a few values, within-one agreement is high (78.0%) but equal to the chance level. For human-human pairs, chance exact agreement is 29.0%, almost exactly the observed 29.1%.
+
+**Figure - Distribution of human evaluators' ratings for each post and quality criterion (n = 19).**
 
 ![Distribution of human ratings](figures/human-ratings-distribution.png)
 
-Each stacked bar counts how many evaluators gave each score to one post, from 1 (very poor, dark red) to 5 (excellent, dark green). Ratings of 4 and 5 dominate every post, and the bars of different posts look alike. That low variation between posts is why agreement statistics can reveal little here: there is not much difference between posts for the Critic to reproduce. Excluding the two evaluators who gave the minimum score to at least half of their ratings does not change this (Critic-human exact agreement 32.6% against 32.9% expected).
+Each stacked bar shows how many evaluators assigned each score on the 1-5 scale to one post, from 1 (very poor, dark red) to 5 (excellent, dark green); letters are post identifiers. Ratings of 4 and 5 dominate every post, and the bars of different posts look alike. Differences between posts accounted for only 2% to 4% of the variation in human scores, against 41% to 44% for differences between evaluators, so the ratings say more about who rated than about which post was rated, which leaves little separation between posts for the Critic to reproduce. Excluding the two evaluators who gave the minimum score to at least half of their ratings did not change this: Critic-human exact agreement was 32.6%, against 32.9% expected from the score distributions.
+
+**Table - Score levels and association.**
+
+| Dimension | Human M (SD) | Critic M (SD) | Bias [95% CI] | MAE | κw | ρ | α (humans) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Clarity and Readability | 3.94 (1.10) | 4.00 (0.00) | +0.06 [−0.28, +0.44] | 0.76 | 0.00 | n/a | −0.02 |
+| Relevance and Informational Value | 3.79 (1.18) | 3.20 (0.42) | −0.59 [−1.03, −0.13] | 1.14 | 0.02 | 0.22 | −0.01 |
+| Professional Appropriateness | 3.96 (1.06) | 4.10 (0.32) | +0.14 [−0.22, +0.52] | 0.75 | 0.04 | 0.47 | 0.00 |
+| Engagement Quality | 3.69 (1.23) | 3.30 (0.48) | −0.39 [−0.88, +0.10] | 1.14 | −0.01 | −0.04 | −0.01 |
+| Overall Quality | 3.82 (1.12) | 3.20 (0.42) | −0.62 [−1.05, −0.15] | 1.11 | −0.01 | −0.17 | −0.03 |
+
+M (SD) is the mean and standard deviation over all ratings, and bias is Critic minus human. κw is the quadratic weighted kappa, ρ the Spearman correlation between the Critic score and the mean human score per post (n = 10; n/a when the Critic gave all posts the same score), and α Krippendorff's ordinal alpha among evaluators. The Critic was lower than the human means by 0.59 points for Relevance and 0.62 for Overall Quality, and within 0.06 and 0.14 points for Clarity and Professional Appropriateness, but its standard deviations were much smaller. Weighted kappa near zero and low-to-moderate or undefined correlations indicate limited post-level correspondence, and α between −0.03 and 0.00 shows that the evaluators did not agree with one another either.
 
 Records: [Agreement analysis](study/analysis/form_agreement.py) · [Questionnaire responses](study/data/form-responses.xlsx) · [Critic scores](study/data/critic-scores.csv).
 
 ## Critic stability and response to degraded posts
 
-In five repeated runs of the stored Critic configuration, the score matched the stored one in 100% of cases for Clarity and Relevance, 86% for Professional Appropriateness, 92% for Engagement, and 94% for Overall Quality, and never differed by more than one point. The acceptance decision changed across runs for one post (H), whose composite moved between 3.50 and 3.35. When each post was truncated, the Critic rejected 80% of them: Engagement fell from 3.38 to 2.20 and Clarity from 4.00 to 3.30, while Relevance changed little (3.20 to 2.90).
+In five repeated runs of the stored Critic configuration, the score matched the stored one in 100% of cases for Clarity and Relevance, 86% for Professional Appropriateness, 92% for Engagement, and 94% for Overall Quality (mean within-post SD at most 0.10), and never differed by more than one point. The acceptance decision changed across runs for one post (H), whose composite moved between 3.50 and 3.35. When each post was truncated, the Critic rejected 80% of them: mean Engagement fell from 3.38 to 2.20 and Clarity from 4.00 to 3.30, while Relevance changed little (3.20 to 2.90). The low agreement with the evaluators is therefore not due to run-to-run instability: the Critic is stable and responds to substantial degradation, but varies little across intact posts.
 
 Records: [Repeated runs and truncation control](study/data/critic-repeat.csv) · [Script that produced them](scripts/study-critic-form.ts).
 
 ## Writer comparison and prompt sensitivity
+
+**Figure - Critic scores for the ten topics written by three Writers.**
+
+![Writer comparison](figures/writer-comparison.png)
+
+Panel (a) shows the mean score per dimension under the current Critic prompt, with 95% bootstrap intervals over posts. Panel (b) shows the composite score per post; the horizontal line is the acceptance threshold (3.5). The open gray circles are the original scores of the human-rated GPT posts, and the filled markers use the current prompt (`e34fee1d`), so the distance between an open circle and the blue dot of the same post is the effect of the prompt revision alone. Claude and Gemini are above the threshold on all ten topics, with mean paired differences of +1.12 and +1.29 over the GPT posts. On the same GPT texts, the prompt revision lowered every dimension (Professional Appropriateness by 1.10, Relevance by 0.60) and changed the acceptance decision for 9 of the 10 posts.
+
+**Table - Critic scores per Writer: accepted posts, mean composite with 95% bootstrap interval, and mean per dimension.**
 
 | Writer | Accepted | Composite [95% CI] | Cla | Rel | Pro | Eng | Overall |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -159,13 +136,7 @@ Records: [Repeated runs and truncation control](study/data/critic-repeat.csv) ·
 | Claude Sonnet 5 | 10/10 | 4.20 [4.03, 4.33] | 4.3 | 4.0 | 4.5 | 4.1 | 4.1 |
 | Gemini 3.8 Flash | 10/10 | 4.36 [4.25, 4.46] | 4.6 | 4.0 | 5.0 | 4.0 | 4.0 |
 
-The first row uses the original Critic prompt; the other rows share the current one.
-
-**Figure - Critic scores for the ten topics written by three Writers.**
-
-![Writer comparison](figures/writer-comparison.png)
-
-Panel (a) shows the mean score per dimension under the current Critic prompt, with 95% bootstrap intervals over posts. Panel (b) shows the composite score per post; the horizontal line is the acceptance threshold (3.5). The open gray circles are the original scores of the human-rated GPT posts (prompt `732946eb`), and the filled markers use the current prompt (`e34fee1d`), so the distance between an open circle and the blue dot of the same post is the effect of the prompt revision alone. Claude and Gemini are above the threshold on all ten topics, with mean paired differences of +1.12 and +1.29 over the GPT posts. On the same GPT texts, the prompt revision lowered every dimension (Professional Appropriateness by 1.10, Relevance by 0.60) and changed the acceptance decision for 9 of the 10 posts.
+The first row uses the original Critic prompt; the other rows share the current one. All Claude and Gemini posts were accepted, against one GPT post under the current prompt, and the difference between Gemini and Claude was smaller (+0.16, from −0.03 to +0.37). Within each Writer, the Critic again produced nearly constant scores: Relevance was 4 in all of the new posts, and the ten Gemini posts received only two distinct combinations of the four scores.
 
 Records: [Script that re-scores the corpus with the current Critic](scripts/rejudge-corpus.ts).
 
@@ -177,9 +148,6 @@ Records: [Script that re-scores the corpus with the current Critic](scripts/reju
 | Agents, LangGraph workflow, tools, and stores | [src/app/MAS/](src/app/MAS/) |
 | Web interface (runs, review, study panels) | [src/app/(dashboard)/](src/app/%28dashboard%29/) |
 | Questionnaire responses, corpus, and Critic scores | [study/data/](study/data/README.md) |
-| Analysis scripts | [study/analysis/](study/analysis/README.md) |
-| Paper source | [study/artigo-icaart-2027/](study/artigo-icaart-2027/) |
-| Study and maintenance scripts | [scripts/](scripts/) |
 | Database schema and migrations | [drizzle/](drizzle/) |
 | Figures used in this README | [figures/](figures/) |
 
