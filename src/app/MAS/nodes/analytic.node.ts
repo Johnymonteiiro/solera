@@ -1,7 +1,7 @@
 import { AIMessage } from "@langchain/core/messages";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import { makeAnalystAgent } from "../agents/analyst.agent";
-import { getAgentConfig } from "../lib/configStore";
+import { messageText } from "../lib/messageText";
 import { emitEvent } from "../lib/threadStore";
 import { State } from "../states/states";
 import { ResearchResult } from "../types/types";
@@ -28,7 +28,7 @@ function formatPayloadForAnalyst(
   results: ResearchResult[],
 ): string {
   if (results.length === 0) {
-    return `TÓPICO: ${topic}\n\nFONTES: (nenhuma fonte coletada)`;
+    return `TOPIC: ${topic}\n\nSOURCES: (no sources collected)`;
   }
   const sources = results
     .map((r, i) => {
@@ -37,7 +37,7 @@ function formatPayloadForAnalyst(
     })
     .join("\n\n");
 
-  return `TÓPICO: ${topic}\n\nFONTES:\n${sources}`;
+  return `TOPIC: ${topic}\n\nSOURCES:\n${sources}`;
 }
 
 interface AnalystOutput {
@@ -61,14 +61,9 @@ export async function analystNode(
     return { insights: [], status: "analyzing" };
   }
 
-  const cfg = await getAgentConfig();
   // O idioma vem do state (escolha da UI) e decide em que língua os insights
   // saem — o writer escreve na mesma, sem traduzir no ato de escrever.
-  const analystAgent = await makeAnalystAgent(
-    cfg.analyst.role,
-    cfg.analyst.promptOverride,
-    state.language,
-  );
+  const analystAgent = await makeAnalystAgent(state.language);
   const payload = formatPayloadForAnalyst(state.topic, state.researchResults);
   const result = await analystAgent.invoke({
     messages: [{ role: "user", content: payload }],
@@ -77,7 +72,7 @@ export async function analystNode(
   const lastAi = [...(result.messages ?? [])]
     .reverse()
     .find((m) => AIMessage.isInstance(m)) as AIMessage | undefined;
-  const raw = typeof lastAi?.content === "string" ? lastAi.content : "";
+  const raw = messageText(lastAi?.content);
 
   let insights: string[] = [];
   // null = o modelo não declarou `filtered`. Distinto de 0 ("declarou nenhuma"):

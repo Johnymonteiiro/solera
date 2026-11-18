@@ -37,6 +37,7 @@ function run(
     status: "awaiting_review",
     judgeLoop: true,
     writerModel: "",
+    formLabel: null,
     revisionCount: 0,
     judgeRetries: 0,
     createdAt,
@@ -322,6 +323,86 @@ console.log("\n7. ordem do formulário");
     "e é reprodutível entre chamadas",
     formOrder(sel.items).map((i) => i.label).join("") === alfabetica,
   );
+}
+
+// ── 8. Braços do benchmark (modelo do Writer) ─────────────────────────────
+console.log("\n8. braços do benchmark");
+{
+  const CLAUDE = "anthropic/claude-sonnet-5";
+  const originais: [string, string, string][] = [
+    ["g1", "tema a", dia(1)],
+    ["g2", "tema b", dia(2)],
+    ["g3", "tema c", dia(3)],
+  ];
+  // O braço Claude roda DEPOIS, em ordem trocada, repete um tópico e traz um
+  // tópico que o original não tem.
+  const braco: [string, string, string][] = [
+    ["c3", "tema c", dia(10)],
+    ["c1", "tema a", dia(11)],
+    ["c1b", "tema a", dia(12)],
+    ["cx", "tema novo", dia(13)],
+  ];
+  const runs = [
+    ...originais.map(([id, t, at]) => run(id, t, at)),
+    ...braco.map(([id, t, at]) => ({ ...run(id, t, at), writerModel: CLAUDE })),
+  ];
+  const histories = new Map(
+    [...originais, ...braco].map(([id, , at]) => [id, history(id, at, "accept")]),
+  );
+
+  const semBraco = selectCorpus(
+    originais.map(([id, t, at]) => run(id, t, at)),
+    histories,
+  );
+  const original = selectCorpus(runs, histories);
+  const letras = (s: typeof original) =>
+    s.items.filter((i) => i.inCorpus).map((i) => `${i.threadId}:${i.label}`).sort().join(",");
+  check(
+    "execuções de outro modelo não mexem nas letras do original",
+    letras(original) === letras(semBraco),
+    letras(original),
+  );
+  check("o original não inclui o braço", original.items.every((i) => i.writerModel === ""));
+
+  const claude = selectCorpus(runs, histories, CLAUDE);
+  const letraDe = (id: string) => claude.items.find((i) => i.threadId === id)?.label;
+  const letraOriginal = (id: string) => original.items.find((i) => i.threadId === id)?.label;
+  check(
+    "cada post do braço herda a letra do original do mesmo tópico",
+    letraDe("c1") === letraOriginal("g1") && letraDe("c3") === letraOriginal("g3"),
+    `c1=${letraDe("c1")} c3=${letraDe("c3")}`,
+  );
+  check(
+    "tópico repetido no braço: vence o mais antigo",
+    claude.items.find((i) => i.threadId === "c1b")?.exclusion === "topico_repetido",
+  );
+  check(
+    "tópico fora do original fica fora do benchmark",
+    claude.items.find((i) => i.threadId === "cx")?.exclusion === "fora_do_benchmark",
+  );
+  check("o braço só traz execuções dele", claude.items.every((i) => i.writerModel === CLAUDE));
+  check(
+    "a lista de braços conta as execuções de cada modelo",
+    JSON.stringify(claude.arms) === JSON.stringify([{ model: "", runs: 3 }, { model: CLAUDE, runs: 4 }]),
+    JSON.stringify(claude.arms),
+  );
+}
+
+// ── 9. Letra gravada (runs.form_label) ──────────────────────────────────────
+console.log("\n9. letra gravada vence a posição");
+{
+  // Sobram só os posts que foram ao form (C, J), sem os mais antigos que
+  // ocupavam A e B; uma execução nova sem letra entra depois.
+  const runs = [
+    { ...run("c", "tema c", dia(3)), formLabel: "C" },
+    { ...run("j", "tema j", dia(4)), formLabel: "J" },
+    run("nova", "tema novo", dia(9)),
+  ];
+  const histories = new Map(runs.map((r) => [r.threadId, history(r.threadId, r.createdAt, "accept")]));
+  const sel = selectCorpus(runs, histories);
+  const letra = (id: string) => sel.items.find((i) => i.threadId === id)?.label;
+  check("a letra gravada não é renumerada", letra("c") === "C" && letra("j") === "J", `c=${letra("c")} j=${letra("j")}`);
+  check("execução sem letra pega a primeira livre", letra("nova") === "A", `${letra("nova")}`);
 }
 
 console.log(falhas === 0 ? "\nTUDO OK" : `\n${falhas} FALHA(S)`);

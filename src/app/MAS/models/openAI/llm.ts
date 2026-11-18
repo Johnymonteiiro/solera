@@ -1,7 +1,8 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatOpenRouter } from "@langchain/openrouter";
 import { AgentId, getAgentConfig } from "../../lib/configStore";
+import { getDefaultWriterModel } from "../../lib/modelStore";
 import { resolveApiKey } from "../../lib/settingsStore";
-import { FALLBACK_MODEL } from "./models";
+import { FALLBACK_MODEL, PROVIDERS_BY_FAMILY, toOpenRouterSlug } from "./models";
 
 // Constrói uma instância lendo chave/modelo das settings (com fallback .env).
 // Funções (não const) para pegar mudanças feitas em /configuracoes e /agentes
@@ -11,32 +12,43 @@ import { FALLBACK_MODEL } from "./models";
 // em memória preservaria a assinatura antiga, mas a primeira chamada de um
 // processo frio usaria a chave do .env e o `judgeMeta.model` registraria um
 // modelo que não foi o usado — dataset irreproduzível por conveniência de tipo.
+//
+// Todos os agentes passam pelo OpenRouter desde 2026-09-17 (antes: OpenAI
+// direta). O corpus original foi gerado pela OpenAI direta — ver
+// drizzle/0012_llm_models.sql.
 
 /**
- * Modelo efetivo de um agente, na ordem: config do agente → LLM_MODEL → fallback.
+ * Modelo efetivo de um agente, como a config o grava (sem prefixo do OpenRouter
+ * para os agentes antigos — é o nome que vai para `judgements.model`).
+ *
+ * - Writer: o default da tela /modelos (`llm_models`). O de cada execução é
+ *   gravado em `runs.writer_model`; isto é só o que um run novo usaria.
+ * - Demais: config do agente → FALLBACK_MODEL.
  *
  * Cada agente tem o seu porque o Judge NÃO pode compartilhar modelo com o
  * Writer: avaliar o texto do próprio modelo é viés de auto-preferência. Ver
  * `JUDGE_DEFAULT_MODEL` em ./models.
  */
 export async function getAgentModelName(agentId: AgentId): Promise<string> {
-  const [config, global] = await Promise.all([
-    getAgentConfig(),
-    resolveApiKey("LLM_MODEL"),
-  ]);
-  return pick(config[agentId]?.model, global);
+  if (agentId === "writer") return getDefaultWriterModel();
+  const config = await getAgentConfig();
+  return config[agentId]?.model?.trim() || FALLBACK_MODEL;
 }
 
-/** Config do agente → LLM_MODEL → fallback. Vazio significa "herda". */
-function pick(
-  doAgente: string | undefined,
-  global: string | null | undefined,
-): string {
-  return doAgente?.trim() || global || FALLBACK_MODEL;
+/** Restrição de provedor para o slug, sem fallback. Ver PROVIDERS_BY_FAMILY. */
+function providerFor(slug: string) {
+  const only = PROVIDERS_BY_FAMILY[slug.split("/")[0]];
+  if (!only) {
+    console.warn(
+      `[llm] ${slug}: família sem provedor fixado — o OpenRouter pode rotear entre provedores.`,
+    );
+    return undefined;
+  }
+  return { only, allow_fallbacks: false };
 }
 
 /**
- * Constrói o LLM com UMA rodada de leituras, não três em série.
+ * Constrói o LLM com UMA rodada de leituras, não várias em série.
  *
  * Cada query custa ~300ms de RTT (banco em us-west-2). Resolver o modelo e
  * depois a chave, em sequência, dobrava esse custo em toda construção de agente
@@ -46,19 +58,26 @@ async function build(
   agentId: AgentId,
   temperature: number,
   modelOverride?: string,
-): Promise<ChatOpenAI> {
-  const [config, global, apiKey] = await Promise.all([
-    getAgentConfig(),
-    resolveApiKey("LLM_MODEL"),
-    resolveApiKey("OPENAI_API_KEY"),
+): Promise<ChatOpenRouter> {
+  const [configured, apiKey] = await Promise.all([
+    // Override POR EXECUÇÃO vence a config. É como a condição experimental do
+    // corpus (o modelo do Writer) entra sem mutar config global entre runs.
+    modelOverride?.trim() ? Promise.resolve(modelOverride.trim()) : getAgentModelName(agentId),
+    resolveApiKey("OPENROUTER_API_KEY"),
   ]);
-  return new ChatOpenAI({
-    // Override POR EXECUÇÃO vence a config do agente. É como a condição
-    // experimental do corpus entra sem mutar config global entre runs.
-    model: modelOverride?.trim() || pick(config[agentId]?.model, global),
+  if (!apiKey) {
+    // Sem isto o erro chega como 401 genérico no meio do grafo.
+    throw new Error(
+      "OPENROUTER_API_KEY não configurada: preencha em /configuracoes (API Key) ou no .env.local.",
+    );
+  }
+  const model = toOpenRouterSlug(configured);
+  return new ChatOpenRouter({
+    model,
     temperature,
-    timeout: 60_000,
     apiKey,
+    provider: providerFor(model),
+    siteName: "Solera",
   });
 }
 
@@ -103,7 +122,7 @@ const AGENT_TEMPERATURE: Partial<Record<AgentId, number>> = {
 export async function getAgentLlm(
   agentId: AgentId,
   modelOverride?: string,
-): Promise<ChatOpenAI> {
+): Promise<ChatOpenRouter> {
   return build(
     agentId,
     AGENT_TEMPERATURE[agentId] ?? BASE_TEMPERATURE,
@@ -127,6 +146,8 @@ export async function getJudgeModelName(): Promise<string> {
 // Judge — temperatura baixa para scoring determinístico. ATENÇÃO: baixa não é
 // zero e nem zero seria determinístico; a variação residual é medida pelo
 // test-retest (/api/mas/export/judge-repeat).
-export async function getJudgeLlm(): Promise<ChatOpenAI> {
-  return build("judge", JUDGE_TEMPERATURE);
+export async function getJudgeLlm(model?: string): Promise<ChatOpenRouter> {
+  // `model` explícito vence a config: scripts do estudo precisam do MESMO juiz
+  // das notas que vão comparar, independente do que estiver na tela /agentes.
+  return build("judge", JUDGE_TEMPERATURE, model);
 }

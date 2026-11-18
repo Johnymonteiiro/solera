@@ -3,6 +3,7 @@ import { getGraph } from "@/app/MAS/graph/graph";
 import { flushCheckpointer } from "@/app/MAS/lib/checkpointer";
 import { AGENT_IDS, getAgentConfig } from "@/app/MAS/lib/configStore";
 import { DEFAULT_LANGUAGE } from "@/app/MAS/lib/language";
+import { getDefaultWriterModel, modelExists } from "@/app/MAS/lib/modelStore";
 import { createThread, emitEvent } from "@/app/MAS/lib/threadStore";
 import { NavigatorProvider, PostSize, SearchLanguage } from "@/app/MAS/types/types";
 import { requireArea } from "@/lib/dal";
@@ -22,8 +23,9 @@ interface RunBody {
   // tópico, então precisa decidir isto por run, não numa config global.
   judgeLoop?: boolean;
   /**
-   * Condição experimental do corpus: modelo do writer NESTA execução.
-   * Vazio = o da config global. Ver drizzle/0010_writer_model.sql.
+   * Condição experimental do corpus: modelo do writer NESTA execução, como
+   * slug do OpenRouter. Precisa estar no catálogo (/modelos). Omitido = o
+   * default do catálogo. Ver drizzle/0012_llm_models.sql.
    */
   writerModel?: string;
 }
@@ -83,10 +85,22 @@ export async function POST(req: NextRequest) {
   );
 
   const threadId = `thread_${crypto.randomBytes(4).toString("hex")}`;
+  // O modelo é resolvido AQUI e gravado no run, nunca deixado vazio: vazio
+  // significava "o da config na época", que é justamente o que não se consegue
+  // reconstruir depois (ver 0010_writer_model.sql). É também a coluna que o
+  // filtro por modelo da tela de estudo lê.
+  const pedido =
+    typeof body.writerModel === "string" ? body.writerModel.trim() : "";
+  if (pedido && !(await modelExists(pedido))) {
+    return NextResponse.json(
+      { error: `writerModel "${pedido}" não está no catálogo de modelos (/modelos).` },
+      { status: 400 },
+    );
+  }
+  const writerModel = pedido || (await getDefaultWriterModel());
+
   // Awaited de propósito: draft_versions referencia runs.thread_id, então a
   // linha do run tem que existir antes de o writer gravar a v1.
-  const writerModel =
-    typeof body.writerModel === "string" ? body.writerModel.trim() : "";
   const created = await createThread(
     ownerId,
     threadId,

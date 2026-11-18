@@ -41,3 +41,13 @@ export const POST_SIZE_RANGES: Record<
     hint: "deep dive, autoridade",
   },
 };
+
+/**
+ * Rótulo e dica de cada faixa como aparecem nos PROMPTS (em inglês desde
+ * 2026-09-18). `POST_SIZE_RANGES` continua em português porque é o que a UI mostra.
+ */
+export const POST_SIZE_PROMPT: Record<PostSize, { label: string; hint: string }> = {
+  small: { label: "Small", hint: "single insight, hot take" },
+  medium: { label: "Medium", hint: "balanced, storytelling" },
+  large: { label: "Large", hint: "deep dive, authority" },
+};

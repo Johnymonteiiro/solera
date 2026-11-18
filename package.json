@@ -25,17 +25,18 @@
     "study:corpus-csv": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/export-corpus-csv.ts",
     "study:import-humans": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/import-human-ratings.ts",
     "study:critic-form": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/study-critic-form.ts",
-    "prompts:export": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/export-prompts.ts"
+    "study:benchmark": "dotenv -e .env.local -- tsx --tsconfig tsconfig.json scripts/study-benchmark.ts"
   },
   "dependencies": {
-    "@langchain/core": "^1.1.39",
+    "@langchain/core": "^1.2.11",
     "@langchain/langgraph": "^1.2.8",
-    "@langchain/openai": "^1.4.4",
+    "@langchain/openrouter": "^0.4.13",
     "@tavily/core": "^0.7.2",
     "@xyflow/react": "^12.10.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
+    "echarts": "^6.1.0",
     "exceljs": "^4.4.0",
     "jose": "^6.2.2",
     "langchain": "^1.3.1",

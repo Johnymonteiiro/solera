@@ -18,7 +18,8 @@
       "mcp__context7__query-docs",
       "Bash(pnpm shadcn:*)",
       "Bash(git -C c:/Users/Johny/Documents/Projects/solera diff --stat HEAD)",
-      "Bash(python -)"
+      "Bash(python -)",
+      "PowerShell(Resolve-DnsName *)"
     ]
   }
 }

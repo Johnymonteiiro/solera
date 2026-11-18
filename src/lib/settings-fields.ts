@@ -24,11 +24,11 @@ export interface SettingField {
 export const SETTING_FIELDS: SettingField[] = [
   // ─── Segredos (aba API Key) ───────────────────────────────────────────────
   {
-    key: "OPENAI_API_KEY",
-    hint: "LLM principal dos agentes",
+    key: "OPENROUTER_API_KEY",
+    hint: "LLMs dos agentes, via OpenRouter",
     group: "modelos",
     secret: true,
-    placeholder: "sk-…  preencha para sobrepor o .env",
+    placeholder: "sk-or-…  preencha para sobrepor o .env",
   },
   {
     key: "TAVILY_API_KEY",
@@ -54,13 +54,6 @@ export const SETTING_FIELDS: SettingField[] = [
 
   // ─── Variáveis (aba Variáveis) ────────────────────────────────────────────
   {
-    key: "LLM_MODEL",
-    hint: "Modelo padrão dos agentes",
-    group: "workspace",
-    secret: false,
-    placeholder: "gpt-4o",
-  },
-  {
     key: "BRAVE_URL",
     hint: "Endpoint da API Brave",
     group: "workspace",
@@ -80,28 +73,6 @@ export const SETTING_FIELDS: SettingField[] = [
     group: "workspace",
     secret: false,
     placeholder: "http://localhost:3000/api/auth/callback",
-  },
-  {
-    key: "SEARCH_PROVIDER",
-    hint: "Provider de busca: tavily ou brave",
-    group: "workspace",
-    secret: false,
-    placeholder: "tavily",
-    envVar: "DEFAULT_NAVIGATOR",
-  },
-  {
-    key: "SEARCH_MAX_RESULTS",
-    hint: "Resultados por busca (1–20)",
-    group: "workspace",
-    secret: false,
-    placeholder: "10",
-  },
-  {
-    key: "STUDY_FORM_URL",
-    hint: "Google Form da avaliação humana",
-    group: "workspace",
-    secret: false,
-    placeholder: "https://forms.gle/…",
   },
 ];
 

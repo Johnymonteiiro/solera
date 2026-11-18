@@ -1,7 +1,6 @@
 import { ToolMessage } from "@langchain/core/messages";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import { makeResearcherAgent } from "../agents/researcher.agent";
-import { getAgentConfig } from "../lib/configStore";
 import { emitEvent } from "../lib/threadStore";
 import { State } from "../states/states";
 import { deduplicateAndRank } from "../tools/search";
@@ -19,11 +18,7 @@ export async function researcherNode(
     return { researchResults: [], status: "researching" };
   }
 
-  const cfg = await getAgentConfig();
-  const researcherAgent = await makeResearcherAgent(
-    cfg.researcher.role,
-    cfg.researcher.promptOverride,
-  );
+  const researcherAgent = await makeResearcherAgent();
   const result = await researcherAgent.invoke({
     messages: [{ role: "user", content: state.topic }],
   });

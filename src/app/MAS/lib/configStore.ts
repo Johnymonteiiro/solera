@@ -6,21 +6,27 @@ import { cachedReader } from "./configCache";
 // data/agent-config.json — ver drizzle/0006_config.sql).
 // - enabled: participa do pipeline (para o judge, enabled = loop de reescrita ligado;
 //   mesmo desligado ele ainda pontua uma vez, para o estudo Agent-as-judge).
-// - model: modelo deste agente; vazio herda LLM_MODEL. O Judge tem o seu próprio
+// - model: modelo deste agente; vazio = FALLBACK_MODEL (gpt-4o). O Writer ignora
+//   este campo: o modelo dele vem de /modelos (llm_models). O Judge tem o seu próprio
 //   de propósito — ler a mesma chave que o Writer fazia o juiz avaliar texto do
 //   próprio modelo (viés de auto-preferência).
-// - role: papel do agente — injetado como preâmbulo no system prompt (composeSystemPrompt).
-// - promptOverride: sobrepõe o prompt do código. Para researcher/analyst substitui
-//   o system prompt base; para writer/judge é prependado (o prompt dinâmico é mantido).
-//   Vazio = usa o default do código.
-// Ambos (role + promptOverride) são combinados por composeSystemPrompt() nos nós de LLM.
+// - role: papel do agente, SÓ DO CÓDIGO (AGENT_ROLES). Entra como preâmbulo no
+//   system prompt (composeSystemPrompt).
+//
+// Papel e prompt deixaram de ser editáveis em 2026-09-18. Um texto livre na
+// tela mudava o comportamento do agente em runtime, sem versão — foi assim que
+// um override corrompeu as notas do Judge, e que Researcher e Analyst rodaram
+// o corpus com prompts que não estavam no código. Agora o código é a fonte
+// única e a tela só mostra. As colunas `role`/`prompt_override` continuam na
+// tabela como registro do que estava configurado durante o corpus; ninguém
+// mais lê nem grava nelas.
 
 export interface AgentConfig {
   enabled: boolean;
-  /** Modelo deste agente. Vazio = herda LLM_MODEL. Ver models/openAI/llm.ts. */
+  /** Modelo deste agente. Vazio = FALLBACK_MODEL. Ver models/openAI/llm.ts. */
   model: string;
+  /** Papel do código (AGENT_ROLES). Só leitura. */
   role: string;
-  promptOverride: string;
 }
 
 export type AgentId =
@@ -42,21 +48,22 @@ export const AGENT_IDS: AgentId[] = [
   "publisher",
 ];
 
-const DEFAULT_ROLES: Record<AgentId, string> = {
+/** Papel de cada agente — em inglês, como os prompts. Fonte única. */
+export const AGENT_ROLES: Record<AgentId, string> = {
   researcher:
-    "Pesquisa a web (Tavily/Brave) por fontes relevantes e confiáveis sobre o tópico.",
+    "Searches the web (Tavily/Brave) for relevant and reliable sources on the topic.",
   analyst:
-    "Filtra as fontes e extrai 3–5 insights de valor, descartando ruído e viés comercial.",
+    "Filters the sources and extracts 3–5 valuable insights, discarding noise and commercial bias.",
   writer:
-    "Escreve e revisa o rascunho do post de LinkedIn a partir dos insights e do feedback.",
+    "Writes and revises the LinkedIn post draft based on the insights and the feedback.",
   judge:
-    "Avalia o rascunho (LLM-as-judge): 4 dimensões 1–5 + nota geral; a decisão ACCEPT/REJECT sai da regra em código.",
+    "Evaluates the draft (LLM-as-judge): 4 dimensions 1–5 + overall score; the ACCEPT/REJECT decision comes from the rule in code.",
   hitl:
-    "Ponto de revisão humana: aprova, pede revisão, refaz a pesquisa ou encerra.",
-  publisher: "Publica o post aprovado no LinkedIn e salva o registro.",
+    "Human review point: approves, requests a revision, redoes the research or stops.",
+  publisher: "Publishes the approved post on LinkedIn and saves the record.",
 };
 
-// Vazio = herda LLM_MODEL. Só o judge nasce com modelo próprio: é o default que
+// Vazio = FALLBACK_MODEL. Só o judge nasce com modelo próprio: é o default que
 // desfaz o acoplamento com o writer sem exigir que alguém abra a tela /agentes.
 const DEFAULT_MODELS: Record<AgentId, string> = {
   researcher: "",
@@ -74,8 +81,7 @@ function defaults(): AgentConfigMap {
       {
         enabled: true,
         model: DEFAULT_MODELS[id],
-        role: DEFAULT_ROLES[id],
-        promptOverride: "",
+        role: AGENT_ROLES[id],
       },
     ]),
   ) as AgentConfigMap;
@@ -134,8 +140,8 @@ async function loadAgentConfig(): Promise<AgentConfigMap> {
       // salvou na tela — exatamente o tipo de config silenciosamente errada que
       // já custou as notas do Judge uma vez.
       model: r.model ?? base[id].model,
-      role: r.role || base[id].role,
-      promptOverride: r.promptOverride,
+      // Papel sempre do código — ver o cabeçalho deste arquivo.
+      role: AGENT_ROLES[id],
     };
   }
   return base;
@@ -158,18 +164,16 @@ export async function saveAgentConfig(
         agentId: id,
         enabled: cfg.enabled,
         model: cfg.model ?? "",
-        role: cfg.role,
-        promptOverride: cfg.promptOverride,
         updatedAt: now,
         updatedBy,
       })
+      // Só liga/desliga e modelo. `role`/`prompt_override` ficam intocados:
+      // são registro do que estava configurado durante o corpus.
       .onConflictDoUpdate({
         target: agentConfigs.agentId,
         set: {
           enabled: cfg.enabled,
           model: cfg.model ?? "",
-          role: cfg.role,
-          promptOverride: cfg.promptOverride,
           updatedAt: now,
           updatedBy,
         },
@@ -178,20 +182,7 @@ export async function saveAgentConfig(
   invalidateAgentConfigCache();
 }
 
-// Compõe o system prompt final de um agente a partir da config:
-//  - role (se preenchido) vira um preâmbulo de papel, sempre no topo.
-//  - promptOverride: em "replace" substitui o prompt base; em "prepend" é
-//    colocado antes do base (o base dinâmico é mantido). Vazio → usa o base.
-export function composeSystemPrompt(
-  role: string,
-  promptOverride: string,
-  base: string,
-  mode: "replace" | "prepend" = "replace",
-): string {
-  const roleLine = role.trim() ? `PAPEL DESTE AGENTE: ${role.trim()}\n\n` : "";
-  const ov = promptOverride.trim();
-  if (mode === "prepend") {
-    return roleLine + (ov ? `${ov}\n\n---\n\n` : "") + base;
-  }
-  return roleLine + (ov || base);
+/** Preâmbulo de papel + prompt do código. É o system prompt final do agente. */
+export function composeSystemPrompt(agentId: AgentId, base: string): string {
+  return `AGENT ROLE: ${AGENT_ROLES[agentId]}\n\n${base}`;
 }

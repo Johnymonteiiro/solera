@@ -2,8 +2,41 @@
 // default do judge e `llm.ts` precisa ler a config dos agentes — se as duas
 // constantes morassem em `llm.ts`, o import fecharia um ciclo.
 
-/** Usado quando nem o agente nem `LLM_MODEL` definem modelo. */
+/**
+ * Usado quando o agente não define modelo (Researcher e Analyst hoje).
+ * Era o `LLM_MODEL=gpt-4o` do .env, que saiu em 2026-09-17: mesmo valor, então
+ * os dois agentes seguem no modelo do corpus.
+ */
 export const FALLBACK_MODEL = "gpt-4o";
+
+/** Writer sem linha default em `llm_models` (banco vazio / sem banco). */
+export const FALLBACK_WRITER_MODEL = "openai/gpt-4.1";
+
+/**
+ * Nome gravado na config → slug do OpenRouter.
+ *
+ * `agent_configs.model` e o `judgements.model` já gravados usam o nome da
+ * OpenAI sem prefixo (`gpt-4.1`). Convertendo aqui, e não reescrevendo o
+ * banco, o dataset continua registrando o nome que sempre registrou.
+ */
+export function toOpenRouterSlug(model: string): string {
+  return model.includes("/") ? model : `openai/${model}`;
+}
+
+/**
+ * Provedores permitidos para cada família, SEM fallback.
+ *
+ * O OpenRouter roteia a mesma chamada entre provedores diferentes (e alguns
+ * servem versões quantizadas). O artigo cita o modelo exato de cada agente;
+ * sem fixar o provedor, dois posts do "mesmo" modelo podem ter saído de
+ * servidores diferentes sem registro disso. Família fora da tabela → sem
+ * restrição (o OpenRouter escolhe), e o log avisa.
+ */
+export const PROVIDERS_BY_FAMILY: Record<string, string[]> = {
+  openai: ["openai"],
+  anthropic: ["anthropic"],
+  google: ["google-vertex", "google-ai-studio"],
+};
 
 /**
  * Modelo do Judge — deliberadamente DIFERENTE do dos demais agentes.

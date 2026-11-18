@@ -1,7 +1,7 @@
 // Relativo, não `@/`: este arquivo é carregado pelo drizzle-kit fora do
 // resolvedor de paths do Next.
 import type { JudgeFinding } from "../app/MAS/types/types";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   doublePrecision,
@@ -61,11 +61,13 @@ export const agentConfigs = pgTable("agent_configs", {
   agentId: text("agent_id").primaryKey(),
   enabled: boolean("enabled").notNull().default(true),
   /**
-   * Modelo deste agente. Vazio = herda `LLM_MODEL` das app_settings.
+   * Modelo deste agente. Vazio = FALLBACK_MODEL (era `LLM_MODEL`, removido em 0012).
    *
    * Existe porque o Judge lia a MESMA chave que o Writer: o juiz avaliava,
    * sempre, texto do próprio modelo — viés de auto-preferência, o confundimento
    * mais sério do estudo. Ver drizzle/0009_agent_model.sql.
+   *
+   * O Writer ignora este campo desde 0012: o modelo dele vem de `llm_models`.
    */
   model: text("model").notNull().default(""),
   role: text("role").notNull().default(""),
@@ -73,6 +75,26 @@ export const agentConfigs = pgTable("agent_configs", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   updatedBy: text("updated_by"),
 });
+
+/**
+ * Catálogo de modelos do WRITER (o que a tela /modelos edita). Ver 0012_llm_models.sql.
+ *
+ * `id` é o slug do OpenRouter (`openai/gpt-4.1`) — é ele que vai para
+ * `runs.writer_model`, então o filtro por modelo do estudo lê a mesma string.
+ * Exatamente uma linha tem `isDefault` (índice único parcial).
+ */
+export const llmModels = pgTable(
+  "llm_models",
+  {
+    id: text("id").primaryKey(),
+    label: text("label").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    updatedBy: text("updated_by"),
+  },
+  (t) => [uniqueIndex("llm_models_one_default").on(t.isDefault).where(sql`${t.isDefault}`)],
+);
 
 /**
  * Matriz papel × área. Só `user` e `colaborador` têm linha aqui.
@@ -148,6 +170,11 @@ export const runs = pgTable(
      * depois. Ver drizzle/0010_writer_model.sql.
      */
     writerModel: text("writer_model").notNull().default(""),
+    /**
+     * Letra do formulário humano, gravada (A, J, D…). Null = letra calculada
+     * pela posição na fila do corpus. Ver drizzle/0013_form_label.sql.
+     */
+    formLabel: text("form_label"),
     /** false = judge pontua mas não reescreve (condição "sem judge"). */
     judgeLoop: boolean("judge_loop").notNull(),
     status: text("status").notNull(),

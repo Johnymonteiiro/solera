@@ -2,7 +2,7 @@
 
 Esta pasta reúne, na íntegra, os prompts usados pelos agentes do Solera e a rubrica de avaliação. É a referência citada no artigo.
 
-> Gerado automaticamente em 2026-09-14 por `pnpm prompts:export`, a partir do código e da configuração dos agentes. Não edite à mão: altere a origem e gere de novo.
+> **Registro congelado do estudo.** Gerado em 2026-09-14 a partir do código e da configuração dos agentes daquela data — é o texto que os agentes receberam ao produzir o corpus. Desde 2026-09-18 os prompts vivem só no código (`src/app/MAS/prompts/`), em inglês, e esta pasta não é mais regenerada.
 
 🌐 **English translation:** [en/README.md](en/README.md)
 

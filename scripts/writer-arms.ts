@@ -1,8 +1,8 @@
 import { AIMessage } from "@langchain/core/messages";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { LINKEDIN_MAX_CHARS, POST_SIZE_RANGES } from "../src/app/MAS/constants";
-import { composeSystemPrompt, getAgentConfig } from "../src/app/MAS/lib/configStore";
+import { LINKEDIN_MAX_CHARS } from "../src/app/MAS/constants";
+import { composeSystemPrompt } from "../src/app/MAS/lib/configStore";
 import { DEFAULT_LANGUAGE } from "../src/app/MAS/lib/language";
 import { RUBRIC_DIMENSIONS, RUBRIC_VERSION } from "../src/app/MAS/lib/rubric";
 import { listRunInputs, type RunInputsRecord } from "../src/app/MAS/lib/studyRecorder";
@@ -150,27 +150,22 @@ async function escrever(
   run: RunInputsRecord,
   insights: string[],
 ): Promise<string> {
-  const targetRange = POST_SIZE_RANGES[run.postSize];
   const insightsList = insights.length
     ? insights.map((ins, i) => `${i + 1}. ${ins}`).join("\n")
     : SENTINELA_SEM_PESQUISA;
 
   // O corpus do estudo é todo em português e o `runs` não grava idioma — a
   // condição experimental aqui é a dose de pesquisa, não a língua.
-  let prompts = writerPrompt({
-    topic: run.topic,
-    language: DEFAULT_LANGUAGE,
-    previousDraftBlock: "",
-    feedbackBlock: "",
-    insightsList,
-    targetRange,
-  });
-  const writerCfg = (await getAgentConfig()).writer;
-  prompts = composeSystemPrompt(
-    writerCfg.role,
-    writerCfg.promptOverride,
-    prompts,
-    "prepend",
+  const prompts = composeSystemPrompt(
+    "writer",
+    writerPrompt({
+      topic: run.topic,
+      language: DEFAULT_LANGUAGE,
+      previousDraftBlock: "",
+      feedbackBlock: "",
+      insightsList,
+      postSize: run.postSize,
+    }),
   );
 
   // modelOverride vazio de propósito: o modelo do writer é a alavanca 5, já
