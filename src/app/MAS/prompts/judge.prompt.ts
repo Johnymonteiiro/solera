@@ -1,12 +1,17 @@
-import { POST_SIZE_RANGES } from "../constants";
+import { POST_SIZE_PROMPT, POST_SIZE_RANGES } from "../constants";
 import {
   ACCEPT_COMPOSITE_MIN,
   ACCEPT_MIN,
-  OVERALL_QUESTION,
-  RUBRIC_DIMENSIONS,
-  SCALE_LABELS,
+  OVERALL_QUESTION_EN,
+  RUBRIC_DIMENSIONS_EN,
+  SCALE_LABELS_EN,
 } from "../lib/rubric";
 import { PostSize } from "../types/types";
+
+// Em inglês desde 2026-09-18, como todos os prompts dos agentes. O instrumento
+// é o mesmo do formulário humano, na tradução revisada (RUBRIC_DIMENSIONS_EN).
+// Os exemplos de engagement bait ficam em português com a glosa: é o texto que
+// aparece nos posts em pt-BR que o Judge avalia.
 
 interface judgeProps {
   topic: string;
@@ -15,102 +20,104 @@ interface judgeProps {
 }
 
 function renderScale(): string {
-  return RUBRIC_DIMENSIONS.map((d) => {
+  return RUBRIC_DIMENSIONS_EN.map((d) => {
     const anchors = ([1, 2, 3, 4, 5] as const)
-      .map((n) => `   ${n} (${SCALE_LABELS[n]}) — ${d.anchors[n]}`)
+      .map((n) => `   ${n} (${SCALE_LABELS_EN[n]}) — ${d.anchors[n]}`)
       .join("\n");
-    return `${d.key} — ${d.label}\n   Pergunta: ${d.question}\n${anchors}`;
+    return `${d.key} — ${d.label}\n   Question: ${d.question}\n${anchors}`;
   }).join("\n\n");
 }
 
 export function judgePrompt({ topic, draft, postSize }: judgeProps) {
   const range = POST_SIZE_RANGES[postSize];
+  const size = POST_SIZE_PROMPT[postSize];
 
-  const prompt = `Você é um avaliador especialista em conteúdo profissional para LinkedIn. Avalie o post abaixo de forma rigorosa, calibrada e independente.
+  const prompt = `You are an expert evaluator of professional LinkedIn content. Evaluate the post below in a rigorous, calibrated and independent way.
 
 <input>
-Tópico solicitado: ${topic}
-Post a avaliar (${draft.length} chars):
+Requested topic: ${topic}
+Post to evaluate (${draft.length} chars):
 ${draft}
 </input>
 
-<instrumento>
-Quatro dimensões, cada uma numa escala de 1 a 5. Use as âncoras — elas definem o que cada ponto significa NESTA dimensão. Não invente meio-ponto: a escala é inteira.
+<instrument>
+Four dimensions, each on a scale from 1 to 5. Use the anchors — they define what each point means IN THIS dimension. Do not invent half points: the scale uses whole numbers.
 
 ${renderScale()}
 
-Depois das quatro, e SÓ depois, dê a nota holística:
+After the four, and ONLY after, give the holistic score:
 
-overall — ${OVERALL_QUESTION}
-   1 (${SCALE_LABELS[1]}) · 2 (${SCALE_LABELS[2]}) · 3 (${SCALE_LABELS[3]}) · 4 (${SCALE_LABELS[4]}) · 5 (${SCALE_LABELS[5]})
-</instrumento>
+overall — ${OVERALL_QUESTION_EN}
+   1 (${SCALE_LABELS_EN[1]}) · 2 (${SCALE_LABELS_EN[2]}) · 3 (${SCALE_LABELS_EN[3]}) · 4 (${SCALE_LABELS_EN[4]}) · 5 (${SCALE_LABELS_EN[5]})
+</instrument>
 
-<calibracao>
-Use a escala INTEIRA. O ponto 3 é "aceitável", não "bom": um post correto porém previsível é 3, e a maioria dos posts genéricos gerados por IA fica entre 2 e 3. Reserve o 5 para o que você defenderia como exemplar diante de um profissional exigente da área.
+<calibration>
+Use the WHOLE scale. Point 3 is "acceptable", not "good": a correct but predictable post is a 3, and most generic AI-generated posts fall between 2 and 3. Reserve 5 for what you would defend as exemplary before a demanding professional in the field.
 
-Avalie o post COMO ELE ESTÁ, pelo que está escrito. Não premie intenção nem potencial.
+Evaluate the post AS IT IS, by what is written. Do not reward intention or potential.
 
-Julgue cada dimensão de forma independente: um post pode ser cristalino (clarity 5) e vazio (relevance 2). Deixar uma nota alta arrastar as outras é o erro mais comum — e é exatamente o que este estudo está medindo.
+Judge each dimension independently: a post can be crystal clear (clarity 5) and empty (relevance 2). Letting a high score drag the others along is the most common mistake — and it is exactly what this study is measuring.
 
-Você NÃO recebeu as fontes usadas na pesquisa. Não avalie veracidade factual: julgue apenas o que dá para julgar a partir do texto e do tópico solicitado.
-</calibracao>
+You did NOT receive the sources used in the research. Do not assess factual accuracy: judge only what can be judged from the text and the requested topic.
+</calibration>
 
-<coerencia priority="absoluta">
-As notas e o diagnóstico têm que contar a MESMA história, e isto é VERIFICADO EM CÓDIGO depois que você responde.
+<coherence priority="absolute">
+The scores and the diagnosis must tell the SAME story, and this is CHECKED IN CODE after you respond.
 
-Cada issue sai marcada com dois campos:
-- \`dimension\`: a qual das quatro dimensões o problema pertence — ${RUBRIC_DIMENSIONS.map((d) => d.key).join(", ")} —, ou "format" para tamanho e link, que são contexto e não dimensão.
-- \`anchor\`: o ponto da escala DAQUELA dimensão cuja descrição corresponde ao problema que você acabou de escrever. Releia as âncoras e escolha o ponto que continua verdadeiro COM esse defeito presente. Use null quando \`dimension\` for "format".
+Each issue is tagged with two fields:
+- \`dimension\`: which of the four dimensions the problem belongs to — ${RUBRIC_DIMENSIONS_EN.map((d) => d.key).join(", ")} —, or "format" for length and link, which are context and not a dimension.
+- \`anchor\`: the point on the scale OF THAT dimension whose description matches the problem you have just written. Reread the anchors and choose the point that remains true WITH that defect present. Use null when \`dimension\` is "format".
 
-**A nota de uma dimensão não pode ser MAIOR que o menor \`anchor\` que você citou para ela.** Se você marcou uma issue de \`professional\` com anchor 2, \`professional\` é no máximo 2. Uma resposta que violar isso volta para você corrigir.
+**A dimension's score cannot be HIGHER than the lowest \`anchor\` you cited for it.** If you tagged a \`professional\` issue with anchor 2, \`professional\` is at most 2. A response that violates this is sent back to you for correction.
 
-Uma ressalva pontual, num texto que no resto se sustenta, é anchor 4 e convive com nota 4 — é o caso do EXEMPLO B. O que não existe é apontar o defeito CENTRAL de uma dimensão e pontuá-la como se ele não estivesse lá.
+A minor reservation, in a text that otherwise holds up, is anchor 4 and coexists with a score of 4 — that is the case of EXAMPLE B. What cannot happen is pointing out the CENTRAL defect of a dimension and scoring it as if it were not there.
 
-E o 3 não é o ponto neutro para onde correr na dúvida: ele tem descrição própria em cada dimensão. Um post cujos defeitos centrais você acabou de listar dificilmente é 3 em todas as quatro.
-</coerencia>
+And 3 is not the neutral point to run to when in doubt: it has its own description in each dimension. A post whose central defects you have just listed is unlikely to be a 3 in all four.
+</coherence>
 
-<referencia>
-EXEMPLO A — post genérico
-"Hoje vou falar sobre inteligência artificial.
-A IA está mudando tudo.
-Muitas empresas estão usando IA.
-Você também deveria usar IA.
-Compartilhe sua opinião abaixo e interaja com seus seguidores!
+<reference>
+EXAMPLE A — generic post
+"Today I am going to talk about artificial intelligence.
+AI is changing everything.
+Many companies are using AI.
+You should use AI too.
+Share your opinion below and interact with your followers!
 #IA #tecnologia #futuro"
-{"issues":[{"dimension":"relevance","anchor":1,"text":"Não responde a nada específico do tópico"},{"dimension":"relevance","anchor":1,"text":"Afirmações amplas sem dado, exemplo ou posição"},{"dimension":"engagement","anchor":1,"text":"Abertura anuncia o assunto em vez de dar um motivo para continuar lendo"},{"dimension":"engagement","anchor":1,"text":"Convite à interação genérico, sem âncora no conteúdo"},{"dimension":"professional","anchor":2,"text":"Pede interação de forma artificial, no registro de corrente de engajamento"}],"suggestions":["Abrir com um dado ou tensão concreta","Trocar as afirmações amplas por um caso real","Fechar com pergunta que exija experiência específica do leitor"],"hasEngagementBait":true,"clarity":3,"relevance":1,"professional":2,"engagement":1,"overall":2}
+{"issues":[{"dimension":"relevance","anchor":1,"text":"Does not answer anything specific about the topic"},{"dimension":"relevance","anchor":1,"text":"Broad claims without data, example or position"},{"dimension":"engagement","anchor":1,"text":"The opening announces the subject instead of giving a reason to keep reading"},{"dimension":"engagement","anchor":1,"text":"Generic invitation to interact, not anchored in the content"},{"dimension":"professional","anchor":2,"text":"Asks for interaction artificially, in the register of an engagement chain"}],"suggestions":["Open with a concrete data point or tension","Replace the broad claims with a real case","Close with a question that requires a specific experience from the reader"],"hasEngagementBait":true,"clarity":3,"relevance":1,"professional":2,"engagement":1,"overall":2}
 
-EXEMPLO B — post substantivo
-"95% dos projetos de IA falham antes de gerar ROI.
-Trabalhei com 40+ empresas e encontrei o padrão:
-1/ Começam pela tecnologia, não pelo problema de negócio
-2/ Ignoram a qualidade dos dados na fase de planejamento
-3/ Subestimam o custo de mudança cultural
-O erro não é técnico — é estratégico.
-Qual o maior obstáculo que você encontrou ao implementar IA? 👇
+EXAMPLE B — substantive post
+"95% of AI projects fail before generating ROI.
+I have worked with 40+ companies and found the pattern:
+1/ They start with the technology, not with the business problem
+2/ They ignore data quality in the planning phase
+3/ They underestimate the cost of cultural change
+The mistake is not technical — it is strategic.
+What is the biggest obstacle you have faced when implementing AI? 👇
 #InteligenciaArtificial #Inovacao #Liderança"
-{"issues":[{"dimension":"relevance","anchor":4,"text":"Cada um dos três pontos fica na superfície"},{"dimension":"relevance","anchor":4,"text":"O dado de abertura aparece sem fonte"},{"dimension":"engagement","anchor":4,"text":"O convite fecha bem, mas não amarra num ponto específico do texto"}],"suggestions":["Desenvolver um dos três pontos com um exemplo concreto","Nomear a origem do número"],"hasEngagementBait":false,"clarity":5,"relevance":4,"professional":5,"engagement":4,"overall":4}
-</referencia>
+{"issues":[{"dimension":"relevance","anchor":4,"text":"Each of the three points stays on the surface"},{"dimension":"relevance","anchor":4,"text":"The opening figure appears without a source"},{"dimension":"engagement","anchor":4,"text":"The invitation closes well, but does not tie into a specific point of the text"}],"suggestions":["Develop one of the three points with a concrete example","Name the source of the figure"],"hasEngagementBait":false,"clarity":5,"relevance":4,"professional":5,"engagement":4,"overall":4}
+</reference>
 
-<diagnostico>
-Além das notas, produza o diagnóstico que alimenta a reescrita — ele é entregue ao redator na íntegra, então escreva para quem vai corrigir o texto:
+<diagnosis>
+Besides the scores, produce the diagnosis that feeds the rewrite — it is handed to the writer in full, so write for whoever is going to fix the text:
 
-issues: problemas específicos e verificáveis, cada um com \`dimension\`, \`anchor\` e \`text\`. O \`text\` aponta ONDE está o problema; não repita o nome da dimensão dentro dele.
-suggestions: uma correção concreta por issue relevante.
-hasEngagementBait: true quando o post pede engajamento de forma artificial — "comenta SIM se concorda", "marque 3 amigos", "interaja com seus seguidores", "compartilhe sua opinião" sem âncora no conteúdo. Uma pergunta sincera, que exige do leitor uma experiência específica ligada ao post, NÃO é bait.
+issues: specific, verifiable problems, each with \`dimension\`, \`anchor\` and \`text\`. The \`text\` points out WHERE the problem is; do not repeat the name of the dimension inside it.
+suggestions: one concrete fix per relevant issue.
+Write the \`text\` of each issue and each suggestion in the same language as the post.
+hasEngagementBait: true when the post asks for engagement artificially — "comenta SIM se concorda" [comment YES if you agree], "marque 3 amigos" [tag 3 friends], "interaja com seus seguidores" [interact with your followers], "compartilhe sua opinião" [share your opinion] without being anchored in the content. A sincere question, which requires from the reader a specific experience related to the post, is NOT bait.
 
-Contexto para os issues (não são dimensões e não devem alterar as notas):
-- Tamanho alvo do post: ${range.label}, entre ${range.min} e ${range.max} chars (${range.hint}). O post tem ${draft.length}.
-- Link http(s) no corpo reduz alcance no LinkedIn; o lugar dele é o primeiro comentário.
-</diagnostico>
+Context for the issues (these are not dimensions and must not change the scores):
+- Target post length: ${size.label}, between ${range.min} and ${range.max} chars (${size.hint}). The post has ${draft.length}.
+- An http(s) link in the body reduces reach on LinkedIn; its place is the first comment.
+</diagnosis>
 
 <output_instructions>
-A ORDEM DAS CHAVES É DELIBERADA: primeiro o diagnóstico, depois as quatro dimensões, e a nota holística POR ÚLTIMO. Emitir "overall" antes faria você ancorar numa nota geral e ajustar as dimensões para caber nela — a ordem existe para que a holística seja consequência do que você já avaliou.
+THE ORDER OF THE KEYS IS DELIBERATE: first the diagnosis, then the four dimensions, and the holistic score LAST. Emitting "overall" first would make you anchor on an overall score and adjust the dimensions to fit it — the order exists so that the holistic score is a consequence of what you have already evaluated.
 
-Você NÃO decide aprovação. A regra de aceitação é aplicada em código — média ponderada das quatro dimensões ≥ ${ACCEPT_COMPOSITE_MIN} (clareza e relevância pesam mais), reprovando também quando duas dimensões caem abaixo de ${ACCEPT_MIN} e uma delas é clareza ou relevância. Sua tarefa é pontuar; não tente mirar o limiar.
+You do NOT decide approval. The acceptance rule is applied in code — weighted mean of the four dimensions ≥ ${ACCEPT_COMPOSITE_MIN} (clarity and relevance weigh more), also rejecting when two dimensions fall below ${ACCEPT_MIN} and one of them is clarity or relevance. Your task is to score; do not try to aim at the threshold.
 
-Responda APENAS com JSON válido, sem markdown ou code fences, exatamente nesta ordem:
+Reply ONLY with valid JSON, without markdown or code fences, exactly in this order:
 {
-  "issues": [{"dimension": "clarity|relevance|professional|engagement|format", "anchor": 1-5 ou null, "text": "..."}],
+  "issues": [{"dimension": "clarity|relevance|professional|engagement|format", "anchor": 1-5 or null, "text": "..."}],
   "suggestions": ["..."],
   "hasEngagementBait": true/false,
   "clarity": 1-5,

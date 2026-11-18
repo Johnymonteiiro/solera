@@ -2,7 +2,7 @@
 
 This folder is an English translation of the [agent prompts](../README.md) of Solera and of the evaluation rubric. It accompanies the paper, which cites these prompts.
 
-> **The Portuguese originals are the authoritative version:** they are the text the agents actually received. This translation is provided for readers who do not read Portuguese. Generated on 2026-09-14 by `pnpm prompts:export`.
+> **The Portuguese originals are the authoritative version:** they are the text the agents actually received. This translation is provided for readers who do not read Portuguese. Generated on 2026-09-14 and frozen since: it is the record of the prompts used in the study. The current prompts live only in the code (`src/app/MAS/prompts/`), in English, since 2026-09-18.
 
 ## Index
 

@@ -2,9 +2,10 @@ import { AIMessage } from "@langchain/core/messages";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import { writerAgent } from "../agents/writer.agent";
 import { conformanceFailures } from "../lib/rubric";
-import { LINKEDIN_MAX_CHARS, POST_SIZE_RANGES } from "../constants";
-import { composeSystemPrompt, getAgentConfig } from "../lib/configStore";
+import { LINKEDIN_MAX_CHARS, POST_SIZE_PROMPT, POST_SIZE_RANGES } from "../constants";
+import { composeSystemPrompt } from "../lib/configStore";
 import { DEFAULT_LANGUAGE } from "../lib/language";
+import { messageText } from "../lib/messageText";
 import { DraftTrigger, recordDraftVersion } from "../lib/studyRecorder";
 import { emitEvent } from "../lib/threadStore";
 import { writerPrompt } from "../prompts/writer.prompt";
@@ -12,12 +13,24 @@ import { State } from "../states/states";
 
 const MIN_INSIGHTS = 2;
 
+/**
+ * Falha de conformidade (lib/rubric.ts, em português porque aparece na UI) →
+ * linha do prompt de reescrita, em inglês. O tamanho leva o número: é ele que
+ * o writer precisa mirar.
+ */
+const CONFORMANCE_EN: Record<string, (chars: number, min: number, max: number) => string> = {
+  "fora da faixa de caracteres": (chars, min, max) =>
+    `${chars} chars, outside the ${min}-${max} target — adjust without losing the central content`,
+  "link http no corpo": () => "http link in the body",
+  "engagement bait": () => "engagement bait",
+};
+
 function extractLastAiContent(messages: unknown): string {
   if (!Array.isArray(messages)) return "";
   const lastAi = [...messages]
     .reverse()
     .find((m) => AIMessage.isInstance(m)) as AIMessage | undefined;
-  return typeof lastAi?.content === "string" ? lastAi.content : "";
+  return messageText(lastAi?.content);
 }
 
 export async function writerNode(
@@ -90,57 +103,50 @@ export async function writerNode(
   // Contexto do draft anterior:
   // - em revisão humana, mostra como base pra correção cirúrgica
   // - em retry do judge, mostra com os issues pra o LLM corrigir as falhas
+  // Blocos em inglês desde 2026-09-18, como o resto do prompt.
   let previousDraftBlock = "";
   if (isHumanRevision && previousDraft) {
-    previousDraftBlock = `\n\nDRAFT ANTERIOR (a ser corrigido — base da reescrita):\n"""\n${previousDraft}\n"""`;
+    previousDraftBlock = `\n\nPREVIOUS DRAFT (to be corrected — basis for the rewrite):\n"""\n${previousDraft}\n"""`;
   } else if (isJudgeRetry && previousDraft) {
     const issues = judgement.issues.length
       ? judgement.issues.map((i) => `- ${i}`).join("\n")
-      : "- (sem issues listados)";
+      : "- (no issues listed)";
     const suggestions = judgement.suggestions.length
       ? judgement.suggestions.map((s) => `- ${s}`).join("\n")
       : "";
     // As dimensões vão junto do texto: "overall 2/5" sozinho não diz ao writer
     // O QUE corrigir, e o diagnóstico específico está nos issues.
     const notas =
-      `clareza ${judgement.clarity}/5, relevância ${judgement.relevance}/5, ` +
-      `adequação profissional ${judgement.professional}/5, engajamento ${judgement.engagement}/5`;
+      `clarity ${judgement.clarity}/5, relevance ${judgement.relevance}/5, ` +
+      `professional appropriateness ${judgement.professional}/5, engagement ${judgement.engagement}/5`;
     // Conformidade é a outra razão pela qual um draft volta — e pode voltar com
     // ACCEPT nas quatro dimensões. Sem esta lista o writer receberia "reescreva"
     // sem saber o que falhou, e o número do tamanho é o que ele precisa mirar.
     const conformidade = conformanceFailures(judgement);
     const conformidadeBloco = conformidade.length
-      ? `\n\nFALHAS DE CONFORMIDADE (obrigatório corrigir):\n${conformidade
-          .map((c) =>
-            c === "fora da faixa de caracteres"
-              ? `- ${previousDraft.length} chars, fora do alvo ${targetRange.min}-${targetRange.max} — ajuste sem perder o conteúdo central`
-              : `- ${c}`,
-          )
+      ? `\n\nCONFORMANCE FAILURES (must be fixed):\n${conformidade
+          .map((c) => `- ${CONFORMANCE_EN[c]?.(previousDraft.length, targetRange.min, targetRange.max) ?? c}`)
           .join("\n")}`
       : "";
-    previousDraftBlock = `\n\nDRAFT ANTERIOR (${judgement.decision} do judge — geral ${judgement.overall}/5; ${notas}):\n"""\n${previousDraft}\n"""\n\nPROBLEMAS APONTADOS PELO JUDGE:\n${issues}${suggestions ? `\n\nSUGESTÕES:\n${suggestions}` : ""}${conformidadeBloco}\n\nReescreva mantendo o que estava bom e corrigindo os problemas apontados. Não refaça o texto do zero: o que o judge não criticou deve sobreviver. Alvo de tamanho ${targetRange.label} (${targetRange.min}-${targetRange.max} chars).`;
+    previousDraftBlock = `\n\nPREVIOUS DRAFT (${judgement.decision} from the judge — overall ${judgement.overall}/5; ${notas}):\n"""\n${previousDraft}\n"""\n\nPROBLEMS POINTED OUT BY THE JUDGE:\n${issues}${suggestions ? `\n\nSUGGESTIONS:\n${suggestions}` : ""}${conformidadeBloco}\n\nRewrite keeping what was good and fixing the problems pointed out. Do not redo the text from scratch: whatever the judge did not criticize must survive. Size target: ${POST_SIZE_PROMPT[postSize].label} (${targetRange.min}-${targetRange.max} chars).`;
   }
 
   const feedbackBlock =
     isHumanRevision && humanFeedback?.comments
-      ? `\n\nINSTRUÇÕES DO REVISOR HUMANO (prioridade absoluta):\n${humanFeedback.comments}\n\nReescreva o draft anterior aplicando estas instruções. Mantenha o que estava bom e corrija APENAS o que foi apontado.`
+      ? `\n\nHUMAN REVIEWER INSTRUCTIONS (absolute priority):\n${humanFeedback.comments}\n\nRewrite the previous draft applying these instructions. Keep what was good and fix ONLY what was pointed out.`
       : "";
 
-  let prompts = writerPrompt({
-    topic,
-    language,
-    previousDraftBlock,
-    feedbackBlock,
-    insightsList,
-    targetRange,
-  });
-  // Config: injeta papel + override (prepend) mantendo o prompt dinâmico do código.
-  const writerCfg = (await getAgentConfig()).writer;
-  prompts = composeSystemPrompt(
-    writerCfg.role,
-    writerCfg.promptOverride,
-    prompts,
-    "prepend",
+  // Papel + prompt, os dois do código (ver lib/configStore.ts).
+  const prompts = composeSystemPrompt(
+    "writer",
+    writerPrompt({
+      topic,
+      language,
+      previousDraftBlock,
+      feedbackBlock,
+      insightsList,
+      postSize,
+    }),
   );
   // Condição experimental do corpus: o modelo vem do STATE, não da config
   // global. Trocar `agent_configs` entre execuções seria config mutável em

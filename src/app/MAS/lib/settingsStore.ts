@@ -24,15 +24,14 @@ import { cachedReader } from "./configCache";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ApiKeyName =
-  | "OPENAI_API_KEY"
-  | "LLM_MODEL"
+  | "OPENROUTER_API_KEY"
   | "TAVILY_API_KEY"
   | "BRAVE_API_KEY"
   | "BRAVE_URL";
 
 /** Chaves cujo valor NUNCA volta num GET — só presença e últimos 4 dígitos. */
 export const SECRET_KEYS: string[] = [
-  "OPENAI_API_KEY",
+  "OPENROUTER_API_KEY",
   "TAVILY_API_KEY",
   "BRAVE_API_KEY",
   "LINKEDIN_CLIENT_SECRET",
@@ -69,8 +68,7 @@ export interface Settings {
 }
 
 const API_KEY_NAMES: ApiKeyName[] = [
-  "OPENAI_API_KEY",
-  "LLM_MODEL",
+  "OPENROUTER_API_KEY",
   "TAVILY_API_KEY",
   "BRAVE_API_KEY",
   "BRAVE_URL",

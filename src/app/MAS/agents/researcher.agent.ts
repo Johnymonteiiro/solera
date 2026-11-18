@@ -4,12 +4,11 @@ import { getAgentLlm } from "../models/openAI/llm";
 import { RESEARCHER_PROMPT } from "../prompts/researcher.prompt";
 import { searchTool } from "../tools/searchTool";
 
-// Factory: injeta papel + override da config (/agentes). Override substitui o
-// prompt base; role vira preâmbulo. Vazios → usa o prompt do código.
-export async function makeResearcherAgent(role = "", promptOverride = "") {
+// Factory: papel + prompt, os dois do código (ver lib/configStore.ts).
+export async function makeResearcherAgent() {
   return createAgent({
     model: await getAgentLlm("researcher"),
     tools: [searchTool],
-    systemPrompt: composeSystemPrompt(role, promptOverride, RESEARCHER_PROMPT),
+    systemPrompt: composeSystemPrompt("researcher", RESEARCHER_PROMPT),
   });
 }

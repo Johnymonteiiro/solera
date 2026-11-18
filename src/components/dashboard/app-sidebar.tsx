@@ -2,6 +2,7 @@
 
 import {
   Bot,
+  Cpu,
   FileText,
   FlaskConical,
   HelpCircle,
@@ -75,6 +76,12 @@ const navAgentes: NavItem[] = [
     icon: Bot,
   },
   {
+    label: "Modelos",
+    href: "/modelos",
+    area: "agentes",
+    icon: Cpu,
+  },
+  {
     label: "Ferramentas",
     href: "/ferramentas",
     area: "ferramentas",
@@ -120,6 +127,9 @@ const badgeStyles = {
 export function AppSidebar({ areas }: { areas: Area[] }) {
   const pathname = usePathname();
   const permitidas = new Set(areas);
+  // Subrota conta como ativa (/estudo/benchmarks acende "Estudo").
+  const ativo = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`);
   const visivel = (items: NavItem[]) =>
     items.filter((i) => !i.area || permitidas.has(i.area));
 
@@ -158,7 +168,7 @@ export function AppSidebar({ areas }: { areas: Area[] }) {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === item.href}
+                  isActive={ativo(item.href)}
                   tooltip={item.label}
                 >
                   <Link href={item.href}>
@@ -187,7 +197,7 @@ export function AppSidebar({ areas }: { areas: Area[] }) {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === item.href}
+                  isActive={ativo(item.href)}
                   tooltip={item.label}
                 >
                   <Link href={item.href}>
@@ -216,7 +226,7 @@ export function AppSidebar({ areas }: { areas: Area[] }) {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === item.href}
+                  isActive={ativo(item.href)}
                   tooltip={item.label}
                 >
                   <Link href={item.href}>
@@ -236,7 +246,7 @@ export function AppSidebar({ areas }: { areas: Area[] }) {
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton
                 asChild
-                isActive={pathname === item.href}
+                isActive={ativo(item.href)}
                 tooltip={item.label}
               >
                 <Link href={item.href}>

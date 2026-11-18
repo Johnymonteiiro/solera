@@ -203,6 +203,80 @@ export const SCALE_LABELS: Record<1 | 2 | 3 | 4 | 5, string> = {
 export const OVERALL_QUESTION =
   "Considerando tudo, qual é a qualidade geral deste post?";
 
+// ─── O mesmo instrumento em inglês — é o que vai no PROMPT do Judge ──────────
+//
+// Os prompts dos agentes passaram a ser em inglês em 2026-09-18. O instrumento
+// em português acima continua sendo o do formulário humano e o da UI; este é a
+// tradução revisada que o artigo já publicava (prompts/en/05-rubric-…), agora
+// usada de fato pelo Judge. Mesma escala, mesmas âncoras, ponto a ponto.
+// RUBRIC_VERSION não muda (o instrumento é o mesmo); quem separa as coletas é o
+// `rubricHash`, que muda junto com o texto do prompt.
+
+export const RUBRIC_DIMENSIONS_EN: RubricDimensionSpec[] = [
+  {
+    key: "clarity",
+    label: "Clarity and readability",
+    question: "Is the post clear, understandable, well structured and easy to read?",
+    anchors: {
+      1: "Confusing. Dense block or overly long sentences; the central idea cannot be identified.",
+      2: "Hard to follow. Weak structure, requires re-reading; the idea only appears at the end (or not at all).",
+      3: "Understandable with average effort. Acceptable structure, but some passages are dense, truncated or repetitive.",
+      4: "Clear and well organized. Fluent reading, central idea evident early, line breaks help.",
+      5: "Exceptionally clear. Each paragraph advances the idea, rhythm and formatting serve the reader, nothing is superfluous.",
+    },
+  },
+  {
+    key: "relevance",
+    label: "Relevance and informational value",
+    question:
+      "Does the post deliver meaningful, substantive information appropriate for a professional audience, and does it fulfil the intent of the topic?",
+    anchors: {
+      1: "No value or off-topic. Informs nothing and/or does not address the intent of the topic.",
+      2: "Generic. Common sense and broad claims without substance; only grazes the topic.",
+      3: "Correct but predictable information. Covers the basics of the topic without adding much for people in the field.",
+      4: "Substantive. Provides a data point, example or useful distinction and addresses the intent of the topic well.",
+      5: "High value. Non-obvious, specific and actionable insight for the professional audience.",
+    },
+  },
+  {
+    key: "professional",
+    label: "Professional appropriateness",
+    question:
+      "Are the tone, language and presentation appropriate for a professional social network and the intended audience?",
+    anchors: {
+      1: "Inappropriate. Offensive, sensationalist, jarringly informal, or aggressively promotional.",
+      2: "Out of place. Exaggeration, clickbait, empty marketing jargon, excessive emojis or punctuation.",
+      3: "Acceptable. Nothing improper, but the register fluctuates or sounds impersonal and generic (\"AI text\").",
+      4: "Appropriate. Consistent and authentic professional tone, language suited to the audience.",
+      5: "Exemplary. Credible and natural professional voice, calibrated to the audience, free of clichés.",
+    },
+  },
+  {
+    key: "engagement",
+    label: "Engagement quality",
+    question:
+      "Does the post attract attention, sustain interest and encourage appropriate professional interaction?",
+    anchors: {
+      1: "Does not hold attention. Opening without a hook and nothing to sustain reading; or asks for interaction artificially.",
+      2: "Weak. Slow start and interest drops midway; generic invitation such as \"what do you think?\".",
+      3: "Average. Functional opening, keeps the reader until the end, invitation present but not very specific.",
+      4: "Good. Scroll-stopping opening, sustained interest, invitation anchored in the content of the post.",
+      5: "Excellent. The first line compels reading on, tension is maintained, and the invitation draws on a specific experience of the reader.",
+    },
+  },
+];
+
+export const SCALE_LABELS_EN: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: "Very poor",
+  2: "Poor",
+  3: "Acceptable",
+  4: "Good",
+  5: "Excellent",
+};
+
+export const OVERALL_QUESTION_EN =
+  "All things considered, what is the overall quality of this post?";
+
 /**
  * Média ponderada das quatro dimensões. Ver DIMENSION_WEIGHTS.
  *
