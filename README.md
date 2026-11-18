@@ -80,8 +80,6 @@ Ten posts in Brazilian Portuguese, all accepted by the Critic at the first pass,
 
 The Critic gave Clarity a 4 to every post, while the human means ranged from 3.7 to 4.2; six posts sat exactly at the 3.50 acceptance threshold.
 
-Records: [Post texts and metadata](study/data/corpus.csv) · [Critic scores of the rated posts](study/data/critic-scores.csv) · [Questionnaire responses](study/data/form-responses.xlsx) · [Post-letter mapping](study/data/mapping-corpus.csv).
-
 ## Critic-human agreement and human reliability
 
 **Table - Exact and within-one (±1) agreement between pairs of human evaluators, between the Critic and human evaluators, and expected by chance for Critic-human comparisons given the observed score distributions.**
@@ -102,8 +100,6 @@ Ratings of 4 and 5 dominate every post, and the posts look alike: differences be
 
 The Critic's means are close to the human means, but its standard deviations are much smaller; κw near zero and α between −0.03 and 0.00 show little post-level agreement, both for the Critic and among the evaluators.
 
-Records: [Agreement analysis](study/analysis/form_agreement.py) · [Questionnaire responses](study/data/form-responses.xlsx) · [Critic scores](study/data/critic-scores.csv).
-
 ## Critic stability and response to degraded posts
 
 Across five repeated runs, the Critic reproduced its stored scores in 86% to 100% of cases and never differed by more than one point; it rejected 80% of the truncated posts.
@@ -123,8 +119,6 @@ Under the current Critic prompt, the Claude and Gemini posts stay above the 3.5 
 ![Critic scores per Writer](figures/table-writers.png)
 
 The first row uses the original Critic prompt; the others share the current one.
-
-Records: [Benchmark scores](study/data/benchmark-scores.csv) · [Script that scores all three Writers under the same Critic](scripts/study-benchmark.ts).
 
 ## Repository guide
 
