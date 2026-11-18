@@ -1,8 +1,8 @@
 # Human-in-the-Loop Multi-Agent Content Generation
 
-Code, data, and figures accompanying **A Human-in-the-Loop Multi-Agent Architecture for Social Media Content Generation** (ICAART 2027).
+This repository holds the implementation of the multi-agent system presented in the ICAART 2027 paper **A Human-in-the-Loop Multi-Agent Architecture for Social Media Content Generation**, together with the prompts and evaluation data used in the study and the figures and tables the paper refers to.
 
-Solera writes professional LinkedIn posts with five agents: Researcher, Analyst, Writer, Critic, and Publisher. A stateful LangGraph workflow coordinates them. An LLM-based Critic scores each draft on a four-dimension rubric, an acceptance rule computed in code decides whether the draft is rewritten or forwarded, and a human reviewer approves every post before publication.
+The system produces professional LinkedIn posts through five specialized agents (Researcher, Analyst, Writer, Critic, and Publisher) coordinated by a stateful LangGraph workflow. Each draft is scored by an LLM-based Critic on a four-dimension rubric; a rule computed in code then sends it back to the Writer or forward to a human reviewer, who approves every post before it is published.
 
 The study compares the Critic with 19 human evaluators on ten generated posts. The Critic's scores were close to the mean human ratings but nearly constant across posts, so its exact agreement with individual evaluators (30.9%) did not exceed the level expected from the score distributions (31.2%). The Critic was stable across repeated runs and rejected 80% of truncated posts. A revision of its prompt alone changed 9 of the 10 acceptance decisions.
 
@@ -174,7 +174,7 @@ Records: [Benchmark scores](study/data/benchmark-scores.csv) · [Script that sco
 
 ## Running locally
 
-Solera is a Next.js application that uses PostgreSQL and calls its models through OpenRouter.
+The application is built with Next.js, stores its data in PostgreSQL, and calls its models through OpenRouter.
 
 1. Install the dependencies with `pnpm install`.
 2. Create a `.env.local` file with the variables below. API keys and LinkedIn credentials can also be set on the `/configuracoes` page.
