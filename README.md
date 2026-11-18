@@ -100,12 +100,6 @@ Ratings of 4 and 5 dominate every post, and the posts look alike: differences be
 
 The Critic's means are close to the human means, but its standard deviations are much smaller; κw near zero and α between −0.03 and 0.00 show little post-level agreement, both for the Critic and among the evaluators.
 
-## Critic stability and response to degraded posts
-
-Across five repeated runs, the Critic reproduced its stored scores in 86% to 100% of cases and never differed by more than one point; it rejected 80% of the truncated posts.
-
-Records: [Repeated runs and truncation control](study/data/critic-repeat.csv) · [Script that produced them](scripts/study-critic-form.ts).
-
 ## Writer comparison and prompt sensitivity
 
 **Figure - Critic scores for the ten topics written by three Writers.**
