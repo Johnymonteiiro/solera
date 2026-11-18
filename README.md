@@ -66,7 +66,7 @@ The same run after the revision: the Writer and the Critic processed the request
 
 ![Quality criteria and scoring rubric](figures/table-rubric.png)
 
-Every point of the scale has a verbal anchor. The Critic also gives an unanchored Overall Quality score, which does not enter the acceptance rule. The [original rubric](prompts/05-rubrica-e-regra-de-aceitacao.md) is in Portuguese.
+Every point of the scale has a verbal anchor. The Critic also gives an unanchored Overall Quality score, which does not enter the acceptance rule.
 
 **Acceptance rule.** A post goes to human review when the composite `0.35 Cla + 0.35 Rel + 0.15 Pro + 0.15 Eng` is at least 3.5 and no two dimensions score below 3 with at least one of them being Clarity or Relevance. The rule is computed in code, not by the Critic.
 
