@@ -64,12 +64,7 @@ The same run after the revision: the Writer and the Critic processed the request
 
 **Table - Quality criteria and scoring rubric used by the Critic agent and human evaluators (translated from Brazilian Portuguese).**
 
-| Criterion | Evaluation question | Scoring rubric (1-5) |
-|---|---|---|
-| Clarity and Readability | Is the post clear, understandable, well structured and easy to read? | **(1) Very poor:** Confusing; dense block or overly long sentences, with no identifiable central idea.<br>**(2) Poor:** Hard to follow; weak structure and requires re-reading; the idea appears only at the end or not at all.<br>**(3) Acceptable:** Understandable with average effort; acceptable structure, but some passages are dense, truncated, or repetitive.<br>**(4) Good:** Clear and well organized; fluent reading, central idea evident early, and line breaks support readability.<br>**(5) Excellent:** Exceptionally clear; each paragraph advances the idea, rhythm and formatting serve the reader, and nothing is superfluous. |
-| Relevance and Informational Value | Does the post deliver meaningful, substantive information appropriate for a professional audience, and does it fulfil the intent of the topic? | **(1) Very poor:** No value or off-topic; provides no information and/or does not address the topic's intent.<br>**(2) Poor:** Generic; relies on common sense or broad claims without substance and only marginally addresses the topic.<br>**(3) Acceptable:** Correct but predictable; covers the basics without adding much value for people in the field.<br>**(4) Good:** Substantive; provides a data point, example, or useful distinction and addresses the topic's intent well.<br>**(5) Excellent:** High value; provides a non-obvious, specific, and actionable insight for the professional audience. |
-| Professional Appropriateness | Are the tone, language and presentation appropriate for a professional social network and the intended audience? | **(1) Very poor:** Inappropriate; offensive, sensationalist, jarringly informal, or aggressively promotional.<br>**(2) Poor:** Out of place; uses exaggeration, clickbait, empty marketing jargon, excessive emojis, or punctuation.<br>**(3) Acceptable:** Nothing improper, but the register fluctuates or sounds impersonal and generic.<br>**(4) Good:** Appropriate; consistent and authentic professional tone with language suited to the audience.<br>**(5) Excellent:** Exemplary; credible and natural professional voice, calibrated to the audience and free of clichés. |
-| Engagement Quality | Does the post attract attention, sustain interest and encourage appropriate professional interaction? | **(1) Very poor:** Does not hold attention; no effective opening or sustained interest, or artificially requests interaction.<br>**(2) Poor:** Weak; slow start and declining interest, with a generic invitation such as 'what do you think?'.<br>**(3) Acceptable:** Average; functional opening and sufficient interest to reach the end, but the invitation is not very specific.<br>**(4) Good:** Attention-grabbing opening, sustained interest, and an invitation anchored in the post's content.<br>**(5) Excellent:** The first line compels continued reading, tension is maintained, and the invitation draws on a specific reader experience. |
+![Quality criteria and scoring rubric](figures/table-rubric.png)
 
 Every point of the scale has a verbal anchor. The Critic also gives an unanchored Overall Quality score, which does not enter the acceptance rule. The [original rubric](prompts/05-rubrica-e-regra-de-aceitacao.md) is in Portuguese.
 
@@ -81,18 +76,7 @@ Ten posts in Brazilian Portuguese, all accepted by the Critic at the first pass,
 
 **Table - Evaluated posts: requested topic (translated), length in characters, stored Critic scores (Clarity, Relevance, Professional Appropriateness, Engagement, Overall) and mean human score per dimension.**
 
-| Post | Requested topic (translated) | Chars | Critic | Cla | Rel | Pro | Eng | Ov |
-|---|---|---:|:---:|---:|---:|---:|---:|---:|
-| A | What is technical debt and how can it be explained to non-technical people? | 896 | 4,3,4,4,3 | 4.2 | 3.9 | 4.0 | 3.6 | 3.9 |
-| J | Junior programmers will no longer be hired from 2027 onwards | 1361 | 4,3,4,3,3 | 4.2 | 4.3 | 4.2 | 4.2 | 4.2 |
-| D | Legacy code that nobody wants to touch and nobody manages to replace | 1867 | 4,4,4,4,4 | 4.0 | 3.9 | 4.2 | 3.8 | 3.8 |
-| L | Why do retrospective meetings change nothing? | 1686 | 4,3,5,3,3 | 3.9 | 3.7 | 4.2 | 3.6 | 3.7 |
-| F | Technical certifications have lost value in hiring processes | 1227 | 4,3,4,3,3 | 3.8 | 3.6 | 3.9 | 3.8 | 3.8 |
-| P | A college degree is no longer of any use in the job market | 1197 | 4,4,4,4,4 | 3.8 | 3.8 | 3.7 | 3.5 | 3.7 |
-| I | Artificial intelligence will transform the future of work | 1309 | 4,3,4,3,3 | 3.7 | 3.9 | 3.6 | 3.7 | 3.9 |
-| E | How to double a development team's productivity in 30 days? | 938 | 4,3,4,3,3 | 3.9 | 3.5 | 3.9 | 3.4 | 3.6 |
-| H | What is the future of programming? | 1555 | 4,3,4,3,3 | 3.7 | 3.5 | 3.7 | 3.5 | 3.6 |
-| C | Daily stand-up meetings have become an empty ritual in most tech teams | 1183 | 4,3,4,3,3 | 4.2 | 3.7 | 4.2 | 3.7 | 3.9 |
+![Evaluated posts](figures/table-posts.png)
 
 The Critic gave Clarity a 4 to every post, while the human means ranged from 3.7 to 4.2; six posts sat exactly at the 3.50 acceptance threshold.
 
@@ -102,15 +86,7 @@ Records: [Post texts and metadata](study/data/corpus.csv) · [Critic scores of t
 
 **Table - Exact and within-one (±1) agreement between pairs of human evaluators, between the Critic and human evaluators, and expected by chance for Critic-human comparisons given the observed score distributions.**
 
-| Dimension | H-H exact | H-H ±1 | C-H exact | C-H ±1 | Chance exact | Chance ±1 |
-|---|---:|---:|---:|---:|---:|---:|
-| Clarity and Readability | 32.5% | 71.5% | 40.0% | 90.0% | 40.0% | 90.0% |
-| Relevance and Informational Value | 27.5% | 66.6% | 21.1% | 66.3% | 19.9% | 65.4% |
-| Professional Appropriateness | 30.9% | 74.2% | 41.1% | 88.9% | 41.3% | 89.1% |
-| Engagement Quality | 25.7% | 64.4% | 21.6% | 66.8% | 23.6% | 67.7% |
-| **Four dimensions** | **29.1%** | **69.2%** | **30.9%** | **78.0%** | **31.2%** | **78.0%** |
-| 95% CI | 21.7% to 37.3% | 56.3% to 81.3% | 22.3% to 39.9% | 66.8% to 87.7% | | |
-| Overall Quality | 27.4% | 67.4% | 22.6% | 67.9% | 23.3% | 67.7% |
+![Exact and within-one agreement](figures/table-agreement.png)
 
 Critic-human exact agreement (30.9%) matched the level expected by chance from the score distributions (31.2%), and human-human agreement (29.1%) was also at chance level (29.0%).
 
@@ -122,13 +98,7 @@ Ratings of 4 and 5 dominate every post, and the posts look alike: differences be
 
 **Table - Score levels and association.**
 
-| Dimension | Human M (SD) | Critic M (SD) | Bias [95% CI] | MAE | κw | ρ | α (humans) |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Clarity and Readability | 3.94 (1.10) | 4.00 (0.00) | +0.06 [−0.28, +0.44] | 0.76 | 0.00 | n/a | −0.02 |
-| Relevance and Informational Value | 3.79 (1.18) | 3.20 (0.42) | −0.59 [−1.03, −0.13] | 1.14 | 0.02 | 0.22 | −0.01 |
-| Professional Appropriateness | 3.96 (1.06) | 4.10 (0.32) | +0.14 [−0.22, +0.52] | 0.75 | 0.04 | 0.47 | 0.00 |
-| Engagement Quality | 3.69 (1.23) | 3.30 (0.48) | −0.39 [−0.88, +0.10] | 1.14 | −0.01 | −0.04 | −0.01 |
-| Overall Quality | 3.82 (1.12) | 3.20 (0.42) | −0.62 [−1.05, −0.15] | 1.11 | −0.01 | −0.17 | −0.03 |
+![Score levels and association](figures/table-score-levels.png)
 
 The Critic's means are close to the human means, but its standard deviations are much smaller; κw near zero and α between −0.03 and 0.00 show little post-level agreement, both for the Critic and among the evaluators.
 
@@ -150,12 +120,7 @@ Under the current Critic prompt, the Claude and Gemini posts stay above the 3.5 
 
 **Table - Critic scores per Writer: accepted posts, mean composite with 95% bootstrap interval, and mean per dimension.**
 
-| Writer | Accepted | Composite [95% CI] | Cla | Rel | Pro | Eng | Overall |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| GPT-4o / GPT-4o-mini (original Critic prompt) | 10/10 | 3.63 [3.53, 3.75] | 4.0 | 3.2 | 4.1 | 3.3 | 3.2 |
-| GPT-4o / GPT-4o-mini | 1/10 | 3.07 [2.87, 3.27] | 3.6 | 2.6 | 3.0 | 3.0 | 2.6 |
-| Claude Sonnet 5 | 10/10 | 4.20 [4.03, 4.33] | 4.3 | 4.0 | 4.5 | 4.1 | 4.1 |
-| Gemini 3.8 Flash | 10/10 | 4.36 [4.25, 4.46] | 4.6 | 4.0 | 5.0 | 4.0 | 4.0 |
+![Critic scores per Writer](figures/table-writers.png)
 
 The first row uses the original Critic prompt; the others share the current one.
 
