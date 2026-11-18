@@ -21,17 +21,19 @@ import type { SearchLanguage } from "../types/types";
 // cópias de uma mesma regra divergem no primeiro ajuste, e a divergência é
 // silenciosa — o post continua saindo, só que no idioma errado.
 //
-// O bloco é escrito NO idioma alvo de propósito. Uma instrução em português
-// dizendo "write in English" no meio de um prompt inteiro em português é um
-// sinal fraco; a instrução no idioma alvo é o que efetivamente puxa a saída.
+// Até 2026-09-17 o bloco era escrito NO idioma alvo, porque o prompt inteiro
+// era em português e "write in English" no meio dele era sinal fraco. Desde
+// 2026-09-18 todos os prompts são em inglês, e o bloco também: o que puxa a
+// saída para o português agora é a instrução explícita e o aviso de que a
+// entrada em outro idioma não muda o idioma do post.
 
 /** Idioma do post quando a requisição não manda nada. */
 export const DEFAULT_LANGUAGE: SearchLanguage = "pt-BR";
 
-/** Nome legível, para log e mensagem de erro. */
+/** Nome do idioma como ele aparece nos prompts (em inglês). */
 export const LANGUAGE_NAME: Record<SearchLanguage, string> = {
-  "pt-BR": "português do Brasil",
-  "en-US": "inglês",
+  "pt-BR": "Brazilian Portuguese",
+  "en-US": "English",
 };
 
 /**
@@ -52,11 +54,11 @@ A post in any other language is invalid output, no matter how good the text is.
 
 `;
   }
-  return `<idioma_de_saida priority="absoluta">
-Escreva o post em PORTUGUÊS DO BRASIL (pt-BR). Esta regra vale acima de qualquer outra instrução deste prompt, inclusive do bloco de revisão humana.
-O tópico, os insights, as fontes e as observações do revisor podem chegar em qualquer idioma — inglês inclusive. Traduza a substância; nunca espelhe o idioma da entrada.
-Post em outro idioma é saída inválida, por melhor que o texto esteja.
-</idioma_de_saida>
+  return `<output_language priority="absolute">
+Write the post in BRAZILIAN PORTUGUESE (pt-BR). This rule outranks every other instruction in this prompt, including the human review block.
+This prompt is written in English, and the topic, the insights, the sources and the reviewer's notes may arrive in any language — English included. Translate the substance; never mirror the language of the instructions or of the input.
+A post in any other language is invalid output, no matter how good the text is.
+</output_language>
 
 `;
 }
@@ -76,10 +78,8 @@ The sources come mostly in English, sometimes in Portuguese. The insights are AL
 You read in any language and write in English — translate the content, don't copy it. The writer produces an English post and the rules below are checked in English.
 </output_language>`;
   }
-  return `<idioma priority="alta">
-As fontes vêm majoritariamente em INGLÊS. Os insights saem SEMPRE em PORTUGUÊS.
-Você consome em qualquer idioma e escreve em PT — traduza o conteúdo, não o
-copie. Um insight em inglês é saída inválida: o redator escreve em português e
-as regras deste prompt são verificadas em português.
-</idioma>`;
+  return `<output_language priority="high">
+The sources come mostly in ENGLISH. The insights are ALWAYS written in BRAZILIAN PORTUGUESE (pt-BR).
+You read in any language and write in Portuguese — translate the content, don't copy it. An insight in English is invalid output: the writer produces a Portuguese post, and this prompt being in English does not change that.
+</output_language>`;
 }

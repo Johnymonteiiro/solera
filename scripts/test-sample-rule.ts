@@ -35,6 +35,7 @@ function run(
     status: "awaiting_review",
     judgeLoop: true,
     writerModel: "",
+    formLabel: null,
     revisionCount: 0,
     judgeRetries,
     createdAt,

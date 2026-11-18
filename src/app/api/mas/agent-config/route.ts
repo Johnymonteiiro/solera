@@ -5,23 +5,31 @@ import {
   getAgentConfig,
   saveAgentConfig,
 } from "@/app/MAS/lib/configStore";
+import { listModels } from "@/app/MAS/lib/modelStore";
+import { renderAgentPrompts } from "@/app/MAS/lib/promptPreview";
 import { requireAdmin, requireArea } from "@/lib/dal";
 
 export async function GET() {
   // Ler a config dos agentes é a área `agentes`; GRAVAR continua sendo admin.
   const auth = await requireArea("agentes");
   if (!auth.ok) return auth.response;
-  return NextResponse.json({ agents: await getAgentConfig() });
+  const [agents, models] = await Promise.all([getAgentConfig(), listModels()]);
+  return NextResponse.json({
+    agents,
+    // Só leitura: papel e prompt vêm do código (ver lib/configStore.ts).
+    prompts: renderAgentPrompts(),
+    // Opções do select de modelo — o catálogo da tela /modelos.
+    models,
+  });
 }
 
-// Admin-only, e esta é a mais sensível das quatro: `promptOverride` troca o
-// prompt do Judge em RUNTIME, não é versionado, e já corrompeu todas as notas
-// uma vez. Um segundo usuário mexendo aqui invalida o estudo em silêncio.
+// Admin-only. Desde 2026-09-18 só liga/desliga e modelo são graváveis: papel e
+// prompt vêm do código, e um campo `role`/`promptOverride` no corpo é ignorado.
 export async function PUT(req: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
 
-  let body: { agents?: AgentConfigMap };
+  let body: { agents?: Partial<Record<keyof AgentConfigMap, { enabled?: unknown; model?: unknown }>> };
   try {
     body = await req.json();
   } catch {
@@ -32,30 +40,33 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "agents é obrigatório" }, { status: 400 });
   }
 
-  // Mescla sobre a config atual, validando/sanitizando cada agente.
-  const current = await getAgentConfig();
+  const [current, models] = await Promise.all([getAgentConfig(), listModels()]);
+  const catalogo = new Set(models.map((m) => m.id));
   for (const id of AGENT_IDS) {
     const patch = incoming[id];
     if (!patch) continue;
+    let model = current[id].model;
+    if (typeof patch.model === "string") {
+      const pedido = patch.model.trim();
+      // Só modelo do catálogo. O valor atual passa mesmo fora dele (ex.: o
+      // `gpt-4o` implícito do Researcher/Analyst), senão salvar o liga/desliga
+      // de um agente obrigaria a trocar o modelo dele junto.
+      if (pedido !== current[id].model && !catalogo.has(pedido)) {
+        return NextResponse.json(
+          { error: `modelo "${pedido}" não está no catálogo (/modelos)` },
+          { status: 400 },
+        );
+      }
+      model = pedido;
+    }
     current[id] = {
-      enabled:
-        typeof patch.enabled === "boolean"
-          ? patch.enabled
-          : current[id].enabled,
-      // trim() e não a string crua: um espaço acidental no campo viraria um
-      // nome de modelo inválido e derrubaria o agente no meio da execução.
-      model:
-        typeof patch.model === "string" ? patch.model.trim() : current[id].model,
-      role: typeof patch.role === "string" ? patch.role : current[id].role,
-      promptOverride:
-        typeof patch.promptOverride === "string"
-          ? patch.promptOverride
-          : current[id].promptOverride,
+      ...current[id],
+      enabled: typeof patch.enabled === "boolean" ? patch.enabled : current[id].enabled,
+      model,
     };
   }
-  // `updatedBy` não é enfeite: o promptOverride muda o prompt do Judge em
-  // runtime e já corrompeu todas as notas uma vez. Quando uma nota sair
-  // estranha, "quem mexeu e quando" tem que ter resposta.
+  // `updatedBy`: trocar o modelo do Judge obriga a re-pontuar o corpus, então
+  // "quem mexeu e quando" tem que ter resposta.
   await saveAgentConfig(current, auth.ownerId);
   return NextResponse.json({ agents: current });
 }

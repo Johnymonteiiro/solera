@@ -4,18 +4,33 @@ import { PanelsSkeleton } from "@/components/dashboard/skeletons";
 import { AGENTS } from "@/components/dashboard/pipeline-agents";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, ChevronDown, Loader2, Save } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AlertTriangle, Check, ChevronDown, Loader2, Save } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 
-// Espelha o shape de AgentConfigMap sem importar o store (que usa node:fs).
+// Espelha o shape de AgentConfigMap sem importar o store (que toca o banco).
 interface AgentConfig {
   enabled: boolean;
-  /** Vazio = herda LLM_MODEL de /configuracoes. */
+  /** Vazio = gpt-4o (FALLBACK_MODEL). Ignorado no writer: o dele vem de /modelos. */
   model: string;
+  /** Papel do código — só leitura. */
   role: string;
-  promptOverride: string;
 }
+
+interface LlmModel {
+  id: string;
+  label: string;
+}
+
+/** Modelo que o agente usa quando o campo está vazio (FALLBACK_MODEL). */
+const MODELO_PADRAO = "gpt-4o";
 type AgentId =
   | "researcher"
   | "analyst"
@@ -49,6 +64,9 @@ const META = Object.fromEntries(
 
 export function AgentesView() {
   const [config, setConfig] = React.useState<AgentConfigMap | null>(null);
+  // Papel e prompt vêm do código e só são mostrados (ver lib/configStore.ts).
+  const [prompts, setPrompts] = React.useState<Partial<Record<AgentId, string>>>({});
+  const [models, setModels] = React.useState<LlmModel[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [dirty, setDirty] = React.useState(false);
   const [expanded, setExpanded] = React.useState<Set<AgentId>>(new Set());
@@ -65,7 +83,11 @@ export function AgentesView() {
   React.useEffect(() => {
     fetch("/api/mas/agent-config")
       .then((r) => r.json())
-      .then((d: { agents: AgentConfigMap }) => setConfig(d.agents))
+      .then((d: { agents: AgentConfigMap; prompts: Partial<Record<AgentId, string>>; models: LlmModel[] }) => {
+        setConfig(d.agents);
+        setPrompts(d.prompts ?? {});
+        setModels(d.models ?? []);
+      })
       .catch(() => toast.error("Falha ao carregar config dos agentes"));
   }, []);
 
@@ -81,9 +103,17 @@ export function AgentesView() {
       const res = await fetch("/api/mas/agent-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agents: config }),
+        // Só o que é editável: liga/desliga e modelo.
+        body: JSON.stringify({
+          agents: Object.fromEntries(
+            Object.entries(config).map(([id, c]) => [id, { enabled: c.enabled, model: c.model }]),
+          ),
+        }),
       });
-      if (!res.ok) throw new Error(`Erro ${res.status}`);
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(d.error ?? `Erro ${res.status}`);
+      }
       setDirty(false);
       toast.success("Configuração salva");
     } catch (err) {
@@ -103,9 +133,8 @@ export function AgentesView() {
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
       <div className="flex items-center justify-between">
         <p className="text-[12px] text-[var(--text-muted)]">
-          Ative/desative agentes. O <strong>papel</strong> entra como preâmbulo no
-          prompt; o <strong>prompt (override)</strong> substitui/prependa o do código
-          (vazio = usa o padrão).
+          Ative/desative agentes e escolha o modelo. <strong>Papel</strong> e{" "}
+          <strong>prompt</strong> vêm do código e só podem ser visualizados.
         </p>
         <Button color="purple" size="sm" onClick={save} disabled={!dirty || saving}>
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
@@ -122,7 +151,7 @@ export function AgentesView() {
           const Icon = meta?.icon;
           const noLlm = id === "hitl" || id === "publisher";
           const isOpen = expanded.has(id);
-          const hasOverride = cfg.promptOverride.trim().length > 0;
+          const prompt = prompts[id];
           return (
             <div
               key={id}
@@ -198,7 +227,7 @@ export function AgentesView() {
               )}
 
               {/* Modelo */}
-              <label className="mt-3 flex flex-col gap-1">
+              <div className="mt-3 flex flex-col gap-1">
                 <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
                   Modelo
                   {id === "judge" && cfg.model.trim() && (
@@ -210,24 +239,31 @@ export function AgentesView() {
                     </span>
                   )}
                 </span>
-                <input
-                  value={cfg.model}
-                  onChange={(e) => patch(id, { model: e.target.value })}
-                  placeholder="herda LLM_MODEL"
-                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3 py-2 font-mono text-[12px] text-[var(--text-primary)] transition-colors focus:border-[var(--accent-purple)] focus:outline-none"
-                />
-              </label>
+                {id === "writer" ? (
+                  <Link
+                    href="/modelos"
+                    className="rounded-lg border border-dashed border-[var(--border-subtle)] px-3 py-2 text-[12px] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-purple)] hover:text-[var(--text-primary)]"
+                  >
+                    Definido em <strong>Modelos</strong> (OpenRouter) →
+                  </Link>
+                ) : (
+                  <ModelSelect
+                    value={cfg.model}
+                    models={models}
+                    disabled={noLlm}
+                    onPick={(m) => patch(id, { model: m })}
+                  />
+                )}
+              </div>
 
               {/* Papel */}
               <label className="mt-3 flex flex-col gap-1">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
                   Papel
                 </span>
-                <input
-                  value={cfg.role}
-                  onChange={(e) => patch(id, { role: e.target.value })}
-                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3 py-2 text-[12px] text-[var(--text-primary)] transition-colors focus:border-[var(--accent-purple)] focus:outline-none"
-                />
+                <p className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-input)]/50 px-3 py-2 text-[12px] leading-relaxed text-[var(--text-secondary)]">
+                  {cfg.role}
+                </p>
               </label>
 
               {/* Prompt (colapsável) */}
@@ -239,15 +275,9 @@ export function AgentesView() {
                 >
                   <span className="flex items-center gap-1.5">
                     Prompt
-                    {hasOverride ? (
-                      <span className="rounded bg-[var(--accent-purple-dim)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--accent-purple)]">
-                        override
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-normal text-[var(--text-muted)]">
-                        padrão do código
-                      </span>
-                    )}
+                    <span className="text-[10px] font-normal text-[var(--text-muted)]">
+                      {noLlm ? "sem LLM" : "do código · só leitura"}
+                    </span>
                   </span>
                   <ChevronDown
                     size={14}
@@ -269,24 +299,24 @@ export function AgentesView() {
                 >
                   <div className="overflow-hidden">
                     <div className="flex flex-col gap-1">
-                      <span className="text-[10px] text-[var(--text-muted)]">
-                        {id === "writer" || id === "judge"
-                          ? "Prependado ao prompt do código."
-                          : noLlm
-                            ? "Agente sem LLM — não usa prompt."
-                            : "Substitui o prompt do código."}
-                      </span>
-                      <textarea
-                        value={cfg.promptOverride}
-                        onChange={(e) =>
-                          patch(id, { promptOverride: e.target.value })
-                        }
-                        rows={4}
-                        tabIndex={isOpen ? 0 : -1}
-                        placeholder="Vazio = usa o prompt padrão do código"
-                        disabled={noLlm}
-                        className="resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3 py-2 font-mono text-[11px] leading-relaxed text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--accent-purple)] focus:outline-none disabled:opacity-50"
-                      />
+                      {noLlm || !prompt ? (
+                        <span className="text-[11px] text-[var(--text-muted)]">
+                          Agente sem LLM — não usa prompt.
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-[10px] text-[var(--text-muted)]">
+                            Texto exato que o agente recebe. {"{{…}}"} é preenchido em cada
+                            execução; idioma pt-BR e tamanho médio.
+                          </span>
+                          <pre
+                            tabIndex={isOpen ? 0 : -1}
+                            className="max-h-[360px] overflow-y-auto whitespace-pre-wrap rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3 py-2 font-mono text-[11px] leading-relaxed text-[var(--text-secondary)]"
+                          >
+                            {prompt}
+                          </pre>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -298,5 +328,87 @@ export function AgentesView() {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Dropdown de modelo — mesmo padrão do RoleSelect (users-table.tsx): o `select`
+ * nativo não segue o tema e não mostra o slug embaixo do nome.
+ *
+ * O valor atual aparece mesmo fora do catálogo (o `gpt-4o` implícito do
+ * Researcher/Analyst, ou o "gpt-4.1" do Judge gravado sem prefixo): escolher
+ * outro é uma decisão, não um efeito colateral de abrir a tela.
+ */
+function ModelSelect({
+  value,
+  models,
+  disabled,
+  onPick,
+}: {
+  value: string;
+  models: LlmModel[];
+  disabled: boolean;
+  onPick: (model: string) => void;
+}) {
+  const atual = models.find((m) => m.id === value);
+  const foraDoCatalogo = !atual;
+  const nomeAtual = atual?.label ?? (value || `Padrão (${MODELO_PADRAO})`);
+
+  const trigger = (
+    <button
+      type="button"
+      disabled={disabled}
+      className="flex w-full items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3 py-2 text-left text-[12.5px] text-[var(--text-primary)] transition-colors hover:border-[var(--text-muted)] focus:border-[var(--accent-purple)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 data-[state=open]:border-[var(--accent-purple)]"
+    >
+      <span className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className="truncate">{nomeAtual}</span>
+        {atual && (
+          <span className="truncate font-mono text-[10.5px] text-[var(--text-muted)]">
+            {atual.id}
+          </span>
+        )}
+      </span>
+      <ChevronDown size={11} className="shrink-0 opacity-50" />
+    </button>
+  );
+
+  // Travado não vira dropdown: um menu que abre e não deixa escolher nada é
+  // pior que um botão que não abre.
+  if (disabled) return trigger;
+
+  const opcoes = [
+    ...(foraDoCatalogo ? [{ id: value, label: nomeAtual, atualFora: true }] : []),
+    ...models.map((m) => ({ ...m, atualFora: false })),
+  ];
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[240px] p-1">
+        {opcoes.map((m) => (
+          <DropdownMenuItem
+            key={m.id || "padrao"}
+            onSelect={() => onPick(m.id)}
+            className={`flex items-start gap-2.5 rounded-lg px-2.5 py-2 ${
+              m.id === value ? "bg-[var(--bg-card-hover)]" : ""
+            }`}
+          >
+            {/* Cores com `!`: o DropdownMenuItem do shadcn pinta os descendentes
+                no hover e apagaria a hierarquia entre nome e slug — ver RoleSelect. */}
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-[12.5px] font-medium text-[var(--text-primary)]!">
+                {m.label}
+              </span>
+              <span className="truncate font-mono text-[10.5px] text-[var(--text-muted)]!">
+                {m.atualFora ? "atual · fora do catálogo" : m.id}
+              </span>
+            </span>
+            {m.id === value && (
+              <Check size={13} className="mt-0.5 shrink-0 text-[var(--accent-purple)]" />
+            )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

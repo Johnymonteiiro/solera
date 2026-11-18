@@ -365,6 +365,8 @@ export interface RunMetaRecord {
   judgeLoop: boolean;
   /** Condição do corpus: modelo que escreveu. Vazio = config global da época. */
   writerModel: string;
+  /** Letra do form gravada na execução; null = calculada pela fila. */
+  formLabel: string | null;
   revisionCount: number;
   judgeRetries: number;
   createdAt: string;
@@ -384,6 +386,7 @@ export async function listRunMeta(ownerId: string): Promise<RunMetaRecord[]> {
       status: runs.status,
       judgeLoop: runs.judgeLoop,
       writerModel: runs.writerModel,
+      formLabel: runs.formLabel,
       revisionCount: runs.revisionCount,
       judgeRetries: runs.judgeRetries,
       createdAt: runs.createdAt,

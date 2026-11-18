@@ -5,11 +5,13 @@ import { getJudgeLlm } from "../models/openAI/llm";
 interface judgeAgentProps {
     prompts:string
     draft:string
+    /** Modelo explícito do Critic; ausente = o da config. */
+    model?:string
 }
-export async function judgeAgent ({ prompts, draft}: judgeAgentProps) {
+export async function judgeAgent ({ prompts, draft, model}: judgeAgentProps) {
 
  const judge_agent = createAgent({
-  model: await getJudgeLlm(),
+  model: await getJudgeLlm(model),
   systemPrompt: prompts,
 });
 

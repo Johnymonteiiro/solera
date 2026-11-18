@@ -79,7 +79,9 @@ export type CorpusExclusion =
   /** Já existe no corpus uma execução mais antiga do mesmo tópico. */
   | "topico_repetido"
   /** Elegível, mas o corpus já atingiu CORPUS_MAX_POSTS. */
-  | "acima_do_teto";
+  | "acima_do_teto"
+  /** Braço do benchmark: tópico que não está no corpus original. */
+  | "fora_do_benchmark";
 
 export interface CorpusItem {
   /** Rótulo cego mostrado ao avaliador. null = fora do corpus. */
@@ -98,6 +100,11 @@ export interface CorpusItem {
   writerModel: string;
   judgement: JudgeResult | null;
   judgeMeta: JudgeRunMeta | null;
+  /**
+   * TODAS as versões da execução (v1, reescritas do Judge, revisões humanas),
+   * em ordem. Só para exibição: a unidade de análise continua sendo a v1.
+   */
+  versions: VersionRecord[];
   inCorpus: boolean;
   exclusion: CorpusExclusion | null;
 }
@@ -121,11 +128,30 @@ export interface CorpusStats {
   excluded: Record<CorpusExclusion, number>;
 }
 
+/** Um braço do benchmark = um modelo do Writer, com quantas execuções tem. */
+export interface CorpusArm {
+  /** `runs.writer_model`. ORIGINAL_ARM = o corpus original. */
+  model: string;
+  runs: number;
+}
+
 export interface CorpusSelection {
   /** TODOS os candidatos, dentro e fora — o registro auditável. */
   items: CorpusItem[];
   stats: CorpusStats;
+  /** Braço selecionado (ORIGINAL_ARM por padrão). */
+  arm: string;
+  /** Todos os braços que existem no banco, para o filtro da tela. */
+  arms: CorpusArm[];
 }
+
+/**
+ * O corpus original: execuções com `writer_model` vazio, escritas por
+ * gpt-4o/gpt-4o-mini via OpenAI direta antes de a coluna ser sempre preenchida
+ * (ver drizzle/0012_llm_models.sql). É o braço GPT do benchmark e o ÚNICO que
+ * define as letras — o formulário humano já foi a campo com elas.
+ */
+export const ORIGINAL_ARM = "";
 
 const ZERO_EXCLUDED: Record<CorpusExclusion, number> = {
   run_descartado: 0,
@@ -134,6 +160,7 @@ const ZERO_EXCLUDED: Record<CorpusExclusion, number> = {
   instrumento_v1: 0,
   topico_repetido: 0,
   acima_do_teto: 0,
+  fora_do_benchmark: 0,
 };
 
 /**
@@ -164,13 +191,14 @@ function elegibilidade(
   return null;
 }
 
-export function selectCorpus(
+type Pending = Omit<CorpusItem, "label" | "inCorpus"> & {
+  exclusion: CorpusExclusion | null;
+};
+
+function toPending(
   runs: RunMetaRecord[],
   histories: Map<string, VersionRecord[]>,
-): CorpusSelection {
-  type Pending = Omit<CorpusItem, "label" | "inCorpus"> & {
-    exclusion: CorpusExclusion | null;
-  };
+): Pending[] {
   const pending: Pending[] = [];
 
   for (const run of runs) {
@@ -194,6 +222,7 @@ export function selectCorpus(
         writerModel: run.writerModel,
         judgement: null,
         judgeMeta: null,
+        versions: [],
         exclusion: exclusion ?? "sem_versao",
       });
       continue;
@@ -212,20 +241,26 @@ export function selectCorpus(
       writerModel: run.writerModel,
       judgement: v1.judgement,
       judgeMeta: v1.judgeMeta,
+      versions,
       exclusion,
     });
   }
+  return pending;
+}
 
-  // Desempate por threadId: duas execuções podem compartilhar createdAt (mesmo
-  // segundo), e a amostra não pode depender da ordem em que o banco devolveu.
-  const older = (a: Pending, b: Pending) => {
-    if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? a : b;
-    return a.threadId < b.threadId ? a : b;
-  };
+// Desempate por threadId: duas execuções podem compartilhar createdAt (mesmo
+// segundo), e a amostra não pode depender da ordem em que o banco devolveu.
+function older(a: Pending, b: Pending): Pending {
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? a : b;
+  return a.threadId < b.threadId ? a : b;
+}
 
-  // 1 post por tópico normalizado: dois textos do mesmo tópico no mesmo
-  // formulário fazem o avaliador reconhecer a repetição e parar de julgar às
-  // cegas. Vence o mais antigo, pela estabilidade da fila.
+/**
+ * 1 post por tópico normalizado: dois textos do mesmo tópico no mesmo
+ * formulário fazem o avaliador reconhecer a repetição e parar de julgar às
+ * cegas. Vence o mais antigo, pela estabilidade da fila.
+ */
+function onePerTopic(pending: Pending[]): Map<string, Pending> {
   const porTopico = new Map<string, Pending>();
   for (const p of pending) {
     if (p.exclusion) continue;
@@ -236,25 +271,15 @@ export function selectCorpus(
     if (p.exclusion) continue;
     if (porTopico.get(p.topicKey) !== p) p.exclusion = "topico_repetido";
   }
+  return porTopico;
+}
 
-  // Fila cronológica, cega à nota do Judge — ver "o que este módulo NÃO faz".
-  const fila = [...porTopico.values()].sort((a, b) =>
-    older(a, b) === a ? -1 : 1,
-  );
-  const escolhidos = new Set(
-    fila.slice(0, CORPUS_MAX_POSTS).map((p) => p.versionId),
-  );
-  for (const p of fila) {
-    if (!escolhidos.has(p.versionId)) p.exclusion = "acima_do_teto";
-  }
-
-  // Rótulo por POSIÇÃO na fila: acréscimo puro, as letras já distribuídas não
-  // se movem quando uma execução nova entra.
-  const labelPorVersao = new Map<string, string>();
-  fila.slice(0, CORPUS_MAX_POSTS).forEach((p, i) => {
-    labelPorVersao.set(p.versionId, postLabel(i));
-  });
-
+function finish(
+  pending: Pending[],
+  labelPorVersao: Map<string, string>,
+  runsCount: number,
+  topicos: number,
+): Pick<CorpusSelection, "items" | "stats"> {
   const items: CorpusItem[] = pending.map((p) => ({
     ...p,
     label: labelPorVersao.get(p.versionId) ?? null,
@@ -276,7 +301,7 @@ export function selectCorpus(
   return {
     items,
     stats: {
-      runs: runs.length,
+      runs: runsCount,
       candidatos: items.filter(
         (i) => i.exclusion === null || i.exclusion === "topico_repetido" || i.exclusion === "acima_do_teto",
       ).length,
@@ -284,7 +309,7 @@ export function selectCorpus(
       maxPosts: CORPUS_MAX_POSTS,
       raters: RATERS_TARGET,
       avaliacoesEsperadas: noCorpus.length * RATERS_TARGET,
-      topicos: porTopico.size,
+      topicos,
       accept,
       reject,
       balance,
@@ -295,6 +320,113 @@ export function selectCorpus(
       excluded,
     },
   };
+}
+
+/** Corpus original: fila cronológica, teto e letras por posição. */
+function selectOriginal(
+  runs: RunMetaRecord[],
+  histories: Map<string, VersionRecord[]>,
+): Pick<CorpusSelection, "items" | "stats"> {
+  const pending = toPending(runs, histories);
+  const porTopico = onePerTopic(pending);
+
+  // Fila cronológica, cega à nota do Judge — ver "o que este módulo NÃO faz".
+  const fila = [...porTopico.values()].sort((a, b) =>
+    older(a, b) === a ? -1 : 1,
+  );
+  // Letra GRAVADA vence a posição (runs.form_label, 0013_form_label.sql): os
+  // posts que foram ao formulário ficam com a letra que o avaliador viu mesmo
+  // quando execuções mais antigas saem do banco. Quem tem letra gravada entra
+  // sempre; o teto vale para o resto.
+  const gravada = new Map(
+    runs.filter((r) => r.formLabel).map((r) => [r.threadId, r.formLabel as string]),
+  );
+  const vagas = CORPUS_MAX_POSTS - fila.filter((p) => gravada.has(p.threadId)).length;
+  const semLetra = fila.filter((p) => !gravada.has(p.threadId));
+  const escolhidos = new Set([
+    ...fila.filter((p) => gravada.has(p.threadId)).map((p) => p.versionId),
+    ...semLetra.slice(0, Math.max(0, vagas)).map((p) => p.versionId),
+  ]);
+  for (const p of fila) {
+    if (!escolhidos.has(p.versionId)) p.exclusion = "acima_do_teto";
+  }
+
+  // Sem letra gravada: rótulo por POSIÇÃO na fila, pulando as letras gravadas.
+  // Acréscimo puro — as letras já distribuídas não se movem quando uma
+  // execução nova entra.
+  const usadas = new Set(gravada.values());
+  const labelPorVersao = new Map<string, string>();
+  let n = 0;
+  for (const p of fila) {
+    if (!escolhidos.has(p.versionId)) continue;
+    const letra = gravada.get(p.threadId);
+    if (letra) {
+      labelPorVersao.set(p.versionId, letra);
+      continue;
+    }
+    while (usadas.has(postLabel(n))) n++;
+    labelPorVersao.set(p.versionId, postLabel(n++));
+  }
+
+  return finish(pending, labelPorVersao, runs.length, porTopico.size);
+}
+
+/**
+ * Corpus de um braço do benchmark (outro modelo do Writer).
+ *
+ * As letras NÃO são por posição: cada post herda a letra do post ORIGINAL do
+ * mesmo tópico. É o que deixa comparar "A do Claude" com "A do GPT", e é o que
+ * mantém o braço sem efeito nenhum sobre as letras que já foram a campo.
+ * Tópico que não está no corpus original fica fora (`fora_do_benchmark`): sem
+ * par no braço GPT, ele não entra na comparação.
+ */
+function selectArm(
+  armRuns: RunMetaRecord[],
+  histories: Map<string, VersionRecord[]>,
+  original: CorpusItem[],
+): Pick<CorpusSelection, "items" | "stats"> {
+  const letraPorTopico = new Map<string, string>();
+  for (const i of original) {
+    if (i.inCorpus && i.label) letraPorTopico.set(i.topicKey, i.label);
+  }
+
+  const pending = toPending(armRuns, histories);
+  const porTopico = onePerTopic(pending);
+
+  const labelPorVersao = new Map<string, string>();
+  for (const p of porTopico.values()) {
+    const letra = letraPorTopico.get(p.topicKey);
+    if (letra) labelPorVersao.set(p.versionId, letra);
+    else p.exclusion = "fora_do_benchmark";
+  }
+
+  return finish(pending, labelPorVersao, armRuns.length, porTopico.size);
+}
+
+export function selectCorpus(
+  runs: RunMetaRecord[],
+  histories: Map<string, VersionRecord[]>,
+  arm: string = ORIGINAL_ARM,
+): CorpusSelection {
+  const contagem = new Map<string, number>();
+  for (const r of runs) {
+    contagem.set(r.writerModel, (contagem.get(r.writerModel) ?? 0) + 1);
+  }
+  const arms: CorpusArm[] = [...contagem]
+    .map(([model, n]) => ({ model, runs: n }))
+    .sort((a, b) => a.model.localeCompare(b.model));
+
+  // O original é calculado SEMPRE, mesmo pedindo outro braço: é dele que saem
+  // as letras. E só com as execuções dele — um braço novo nunca entra nesta
+  // fila, senão ocuparia letras e remapearia o formulário que já foi a campo.
+  const original = selectOriginal(
+    runs.filter((r) => r.writerModel === ORIGINAL_ARM),
+    histories,
+  );
+  if (arm === ORIGINAL_ARM) return { ...original, arm, arms };
+
+  const armRuns = runs.filter((r) => r.writerModel === arm);
+  return { ...selectArm(armRuns, histories, original.items), arm, arms };
 }
 
 /**
@@ -316,10 +448,11 @@ export function formOrder(items: CorpusItem[]): CorpusItem[] {
 /** Atalho: lê o banco (duas queries) e devolve o corpus pronto, por dono. */
 export async function getCorpusSelection(
   ownerId: string,
+  arm: string = ORIGINAL_ARM,
 ): Promise<CorpusSelection> {
   const [runs, histories] = await Promise.all([
     listRunMeta(ownerId),
     getAllVersionHistories(ownerId),
   ]);
-  return selectCorpus(runs, histories);
+  return selectCorpus(runs, histories, arm);
 }
