@@ -8,6 +8,19 @@ The study compares the Critic with 19 human evaluators on ten generated posts. T
 
 The figures and tables below follow the order in which they appear in the paper. Figure 1, the pipeline overview, is in the paper.
 
+## Contents
+
+1. [Architecture](#architecture)
+2. [Implementation](#implementation)
+3. [Human-in-the-Loop checkpoint](#human-in-the-loop-checkpoint)
+4. [Critic rubric and acceptance rule](#critic-rubric-and-acceptance-rule)
+5. [Evaluation protocol](#evaluation-protocol)
+6. [Critic-human agreement and human reliability](#critic-human-agreement-and-human-reliability)
+7. [Critic stability and response to degraded posts](#critic-stability-and-response-to-degraded-posts)
+8. [Writer comparison and prompt sensitivity](#writer-comparison-and-prompt-sensitivity)
+9. [Repository guide](#repository-guide)
+10. [Running locally](#running-locally)
+
 ## Architecture
 
 The Researcher collects sources through web search, the Analyst extracts the main insights, the Writer drafts the post, and the Critic scores it and suggests revisions. The agents are nodes of a LangGraph `StateGraph` and do not call one another: each node reads the shared state and returns a partial update, and conditional edges decide where execution goes next. The Critic never decides whether a post is accepted; that decision is computed in code. A rejected draft returns to the Writer for at most three automatic rewrites. A draft that passes, or exhausts its rewrites, waits for the human reviewer. While it waits, the workflow is suspended with `interrupt()` and its state is persisted, so the run resumes from the same point.
@@ -24,6 +37,12 @@ The Researcher collects sources through web search, the Analyst extracts the mai
 The table lists the configuration that produced the study corpus, when the agents called the OpenAI API directly. Since then, all agents call their models through OpenRouter, with the provider pinned per model family. The Writer model is now chosen per run from a catalog (the `llm_models` table, edited on the `/modelos` page): GPT-4.1 (default), Claude Sonnet 5, and Gemini 3.8 Flash. The last two are the Writers of the benchmark. The Researcher and Analyst still default to GPT-4o, and the Critic to GPT-4.1.
 
 The [`prompts/`](prompts/README.md) folder is a frozen record of the prompts the agents received while producing the study corpus (Brazilian Portuguese, generated on 2026-09-14, with [English translations](prompts/en/README.md)). Since 2026-09-18 the prompts live only in the code, in [`src/app/MAS/prompts/`](src/app/MAS/prompts/), and are written in English.
+
+## Implementation
+
+The system is implemented in TypeScript with LangGraph.js. The workflow is a `StateGraph` over a shared `AgentState`, and conditional edges implement the acceptance rule and the human decision. Graph checkpoints are persisted by a file-backed extension of LangGraph's in-memory checkpointer, so interrupted runs survive server restarts. Every draft version and Critic assessment is stored in PostgreSQL with its provenance (Critic model, temperature, rubric version and a hash of the Critic prompt), so that scores from different Critic configurations cannot be mixed unnoticed. A Next.js interface starts and resumes runs, streams progress through Server-Sent Events, and lets the reviewer approve a post or send feedback.
+
+The Researcher and Analyst agents use GPT-4o at temperature 0.3 and the Critic uses GPT-4.1 at temperature 0.1. The Writer agent runs at temperature 0.9; it was a GPT-4o-family model for the human-rated posts and Claude Sonnet 5 or Gemini 3.8 Flash in the Writer benchmark. The Critic model differs from every Writer model to reduce self-preference bias (Panickssery et al., 2024), although the GPT-4o Writers share its model family. The Researcher queries the Tavily search API and the Publisher uses the LinkedIn REST API.
 
 ## Human-in-the-Loop checkpoint
 
